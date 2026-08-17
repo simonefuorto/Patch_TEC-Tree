@@ -56,7 +56,8 @@ grep -v -E "PROTOCOL|RUBY_PROTOCOL_" build_opts/${ARCH} > build_opts/${ARCH}_${P
 echo "RUBY_PROTOCOL_${PROTOCOL}=y" >> build_opts/${ARCH}_${PROTOCOL}
 echo "PROTOCOL = '${PROTOCOL}'" >> build_opts/${ARCH}_${PROTOCOL}
 
-CORES=$(nproc 2>/dev/null || echo 4)
+# Forziamo 2 core al massimo per evitare crash per RAM esaurita su Docker/Windows
+CORES=2
 
 scons build/${ARCH}_${PROTOCOL}/gem5.opt -j${CORES} CXXFLAGS="-Wno-error=deprecated-declarations"
 
