@@ -7,6 +7,20 @@ GEM5_DIR="$REPO_ROOT/../gem5"
 
 ARCH="X86"
 PROTOCOL="TARDISTSO_TECTREE"
+
+while [[ "$#" -gt 0 ]]; do
+    case "$1" in
+        -p|--protocol)
+            PROTOCOL="$2"
+            shift 2
+            ;;
+        *)
+            echo "Opzione sconosciuta: $1"
+            echo "Uso: $0 [-p PROTOCOL]"
+            exit 1
+            ;;
+    esac
+done
 BENCHMARKS=("ping_pong" "sweet_spot" "streaming")
 
 echo "=========================================================="

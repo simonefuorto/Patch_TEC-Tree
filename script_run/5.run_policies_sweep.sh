@@ -19,6 +19,20 @@ POLICIES=(0 1 2)
 
 PROTOCOL="TARDISTSO_TECTREE"
 
+while [[ "$#" -gt 0 ]]; do
+    case "$1" in
+        -p|--protocol)
+            PROTOCOL="$2"
+            shift 2
+            ;;
+        *)
+            echo "Opzione sconosciuta: $1"
+            echo "Uso: $0 [-p PROTOCOL]"
+            exit 1
+            ;;
+    esac
+done
+
 if [ ! -d "$GEM5_DIR" ]; then
   echo "ERRORE: Cartella gem5 non trovata al percorso previsto ($GEM5_DIR)!"
   exit 1
