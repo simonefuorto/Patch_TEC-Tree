@@ -58,6 +58,6 @@ echo "PROTOCOL = '${PROTOCOL}'" >> build_opts/${ARCH}_${PROTOCOL}
 
 CORES=$(nproc 2>/dev/null || echo 4)
 
-scons build/${ARCH}_${PROTOCOL}/gem5.opt -j${CORES}
+scons build/${ARCH}_${PROTOCOL}/gem5.opt -j${CORES} CXXFLAGS="-Wno-error=deprecated-declarations"
 
 echo "Done."
