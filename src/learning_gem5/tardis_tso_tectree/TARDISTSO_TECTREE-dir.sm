@@ -179,7 +179,7 @@ machine(MachineType:Directory, "Directory protocol")
 		MachineID Requestor,   desc="Chi ha richiesto il dato";
 		Addr parentAddress,    desc="Indirizzo del blocco padre da cui deriva il datachunk";
 		
-		// 16 Slot Hardware per gestire i Multi-Sfratti concorrenti (Arity massima)
+		// 15 Slot Hardware per gestire i Multi-Sfratti concorrenti (Arity massima)
 		Addr Waiter0, default="intToAddress(0)";
 		Addr Waiter1, default="intToAddress(0)";
 		Addr Waiter2, default="intToAddress(0)";
@@ -244,7 +244,7 @@ machine(MachineType:Directory, "Directory protocol")
     int getL6Index(Addr addr) {
         return (addressToInt(addr) / 64) / 11390625;
     }
-
+    //Primo livello mancante 
     Addr getFirstMissingParent(Addr current_addr) {
         Addr L1 := getParentAddr(current_addr);
         if (L1 != intToAddress(0)) {
@@ -1121,7 +1121,7 @@ machine(MachineType:Directory, "Directory protocol")
 				out_msg.MessageSize := MessageSizeType:Request_Control;
 				out_msg.Len := 0;
 			}
-			DPRINTF(Tectree, "[4.4 Write-Allocate] Sfratto in sospeso. Fetch per il Counter 0x%x\n", counter_addr);
+			DPRINTF(Tectree, "[Sfratto-Counter] Sfratto in sospeso. Fetch per il Counter 0x%x\n", counter_addr);
 		}
 		
 		// Inseriamo l'indirizzo del Dato (address) nel primo slot libero del Counter
@@ -2961,7 +2961,6 @@ machine(MachineType:Directory, "Directory protocol")
 	}
 	
     // [REF: METADATA_UPDATE]
-	// [REF: LAZY_METADATA_UPDATE]
 	action(incrementCounter,"inc", desc="Incrementa l'intero ramo dei Counter presenti in LLC"){
 		Addr L1 := getParentAddr(address);
 		if (L1 != intToAddress(0) && LLC.isTagPresent(L1)) {
