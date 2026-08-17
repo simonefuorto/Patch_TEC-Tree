@@ -7,19 +7,24 @@ PROTOCOL="TARDISTSO_TECTREE"
 VALID_ARCH=("X86" "ARM")
 
 usage() {
-    echo "Usage: $0 -a ARCH"
-    echo "Valid ARCH values: ${VALID_ARCH[*]}"
+    echo "Usage: \$0 -a ARCH [-p PROTOCOL]"
+    echo "Valid ARCH values: \${VALID_ARCH[*]}"
+    echo "Default PROTOCOL: TARDISTSO_TECTREE (e.g. use -p MOESI_hammer or -p MESI_Two_Level for others)"
     exit 1
 }
 
-while [[ "$#" -gt 0 ]]; do
-    case "$1" in
+while [[ "\$#" -gt 0 ]]; do
+    case "\$1" in
         -a|--arch)
-            ARCH="$2"
+            ARCH="\$2"
+            shift 2
+            ;;
+        -p|--protocol)
+            PROTOCOL="\$2"
             shift 2
             ;;
         *)
-            echo "Unknown option: $1"
+            echo "Unknown option: \$1"
             usage
             ;;
     esac
