@@ -1,39 +1,10 @@
 #!/bin/bash
 
 
-ARCH=""
+ARCH="X86"
 PROTOCOL="TARDISTSO_TECTREE"
 
-VALID_ARCH=("X86" "ARM")
-
-usage() {
-    echo "Usage: $0 -a ARCH [-p PROTOCOL]"
-    echo "Valid ARCH values: ${VALID_ARCH[*]}"
-    echo "Default PROTOCOL: TARDISTSO_TECTREE (e.g. use -p MOESI_hammer or -p MESI_Two_Level for others)"
-    exit 1
-}
-
-while [[ "$#" -gt 0 ]]; do
-    case "$1" in
-        -a|--arch)
-            ARCH="$2"
-            shift 2
-            ;;
-        -p|--protocol)
-            PROTOCOL="$2"
-            shift 2
-            ;;
-        *)
-            echo "Unknown option: $1"
-            usage
-            ;;
-    esac
-done
-
-if [[ ! " ${VALID_ARCH[@]} " =~ " $ARCH " ]]; then
-    echo "Error: Invalid ARCH value. Must be one of: ${VALID_ARCH[*]}"
-    usage
-fi
+echo "Questo script è dedicato esclusivamente alla compilazione di TARDISTSO_TECTREE."
 
 # Identifica automaticamente la directory dello script e la cartella gem5 (assumendo che siano "gemelli")
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" &> /dev/null && pwd)"
