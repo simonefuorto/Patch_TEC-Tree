@@ -61,7 +61,7 @@ for SIZE in "${SIZES[@]}"; do
     $GEM5_EXE \
         configs/deprecated/example/se.py \
         -c $REPO_ROOT/tests/test-progs/tardis_tso/x86/${WORKLOAD}/bin/${WORKLOAD} \
-        --options="$SIZE" \
+        --options="-n $SIZE" \
         -n 5 --cpu-type ${ARCH}TimingSimpleCPU --ruby --l2_size=1MB --mem-size=3GB $POLICY_FLAG
     
     # Crea una cartella per salvare le statistiche di questa specifica esecuzione
