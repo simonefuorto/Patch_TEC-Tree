@@ -64,7 +64,7 @@ for PROTOCOL in "${PROTOCOLS[@]}"; do
         # Esegue gem5 per raccogliere le statistiche
         $GEM5_EXE \
             configs/deprecated/example/se.py \
-            -c $REPO_ROOT/tests/test-progs/tardis_tso/x86/microbenchmarks/bin/${WORKLOAD} \
+            -c $REPO_ROOT/tests/test-progs/tardis_tso/x86/${WORKLOAD}/bin/${WORKLOAD} \
             --options="$SIZE" \
             -n 5 --cpu-type ${ARCH}TimingSimpleCPU --ruby --l2_size=1MB --mem-size=3GB $POLICY_FLAG
         
