@@ -50,7 +50,8 @@ echo "[2/2] Avvio compilazione (scons) per $ARCH con protocollo $PROTOCOL..."
 
 # Metodo infallibile per generare build_opts forzando il protocollo
 grep -v -E "PROTOCOL|RUBY_PROTOCOL_" build_opts/${ARCH} > build_opts/${ARCH}_${PROTOCOL}
-echo "RUBY_PROTOCOL_${PROTOCOL}=y" >> build_opts/${ARCH}_${PROTOCOL}
+PROTOCOL_UPPER=$(echo $PROTOCOL | tr '[:lower:]' '[:upper:]')
+echo "RUBY_PROTOCOL_${PROTOCOL_UPPER}=y" >> build_opts/${ARCH}_${PROTOCOL}
 # Il file Ruby.py prenderà il protocollo dall'ambiente di build.
 # Forziamo PROTOCOL da linea di comando scons per ignorare la cache!
 
