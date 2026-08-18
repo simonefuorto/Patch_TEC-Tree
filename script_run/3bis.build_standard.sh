@@ -57,6 +57,10 @@ echo "RUBY_PROTOCOL_${PROTOCOL}=y" >> build_opts/${ARCH}_${PROTOCOL}
 # Forziamo 2 core al massimo per evitare crash per RAM esaurita su Docker/Windows
 CORES=2
 
+echo "[2.5/2] Pulizia cache di Scons per forzare il nuovo protocollo..."
+# QUESTO È FONDAMENTALE: Cancella la cache delle variabili di scons per impedire che usi vecchi protocolli
+rm -f build/${ARCH}_${PROTOCOL}/gem5.build/variables.global
+
 scons build/${ARCH}_${PROTOCOL}/gem5.opt -j${CORES} CXXFLAGS="-Wno-error=deprecated-declarations" PROTOCOL=${PROTOCOL}
 
 echo "Done."

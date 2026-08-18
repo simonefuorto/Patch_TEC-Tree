@@ -255,8 +255,15 @@ def create_system(
                                     bootmem, ruby, cpus)"
             % protocol
         )
-    except:
-        print(f"Error: could not create sytem for ruby protocol {protocol}")
+    except TypeError:
+        # Fallback per i protocolli standard (MOESI_AMD_Base, etc.) che richiedono 6 argomenti
+        (cpu_sequencers, dir_cntrls, topology) = eval(
+            "%s.create_system(options, full_system, system, dma_ports,\
+                                    bootmem, ruby)"
+            % protocol
+        )
+    except Exception as e:
+        print(f"Error: could not create sytem for ruby protocol {protocol}. Exception: {e}")
         raise
 
     # Create the network topology
