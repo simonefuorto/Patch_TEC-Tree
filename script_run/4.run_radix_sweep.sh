@@ -56,12 +56,17 @@ for PROTOCOL in "${PROTOCOLS[@]}"; do
             continue
         fi
         
-        # Lancia gem5 con la dimensione dell'array personalizzata
+        POLICY_FLAG=""
+        if [ "$PROTOCOL" == "TARDISTSO_TECTREE" ]; then
+            POLICY_FLAG="--mru-policy=2"
+        fi
+
+        # Esegue gem5 per raccogliere le statistiche
         $GEM5_EXE \
             configs/deprecated/example/se.py \
-            -c $REPO_ROOT/tests/test-progs/tardis_tso/x86/${WORKLOAD}/bin/${WORKLOAD} \
-            --options="-p 4 -n $SIZE -t" \
-            -n 5 --cpu-type ${ARCH}TimingSimpleCPU --ruby --l2_size=1MB --mem-size=3GB --mru-policy=2
+            -c $REPO_ROOT/tests/test-progs/tardis_tso/x86/microbenchmarks/bin/${WORKLOAD} \
+            --options="$SIZE" \
+            -n 5 --cpu-type ${ARCH}TimingSimpleCPU --ruby --l2_size=1MB --mem-size=3GB $POLICY_FLAG
         
         # Crea una cartella per salvare le statistiche di questa specifica esecuzione
         RESULT_DIR="results_radix/stats_${PROTOCOL}_${SIZE}"

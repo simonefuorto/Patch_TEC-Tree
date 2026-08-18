@@ -65,11 +65,16 @@ echo "Esecuzione in corso... (Questo potrebbe impiegare un minuto, la tracciatur
 # Lanciamo gem5:
 # - '--debug-flags=ProtocolTrace' per stampare i log delle transizioni della Cache (Hit, Miss, Eviction)
 # - Cache L2 impostata deliberatamente minuscola (8kB) per forzare gli sfratti previsti dalla Fase 3
+POLICY_FLAG=""
+if [ "$PROTOCOL" == "TARDISTSO_TECTREE" ]; then
+    POLICY_FLAG="--mru-policy=2"
+fi
+
 $GEM5_EXE \
     --debug-flags=Tectree \
     configs/deprecated/example/se.py \
     -c "$BIN_FILE" \
-    --cpu-type X86TimingSimpleCPU --ruby --l2_size=8kB --mem-size=3GB --mru-policy=2 > "$LOG_FILE" 2>&1
+    --cpu-type X86TimingSimpleCPU --ruby --l2_size=8kB --mem-size=3GB $POLICY_FLAG > "$LOG_FILE" 2>&1
 
 echo "=========================================================="
 echo "Test Completato!"

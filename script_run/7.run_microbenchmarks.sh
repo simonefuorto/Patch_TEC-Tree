@@ -64,12 +64,17 @@ for BENCHMARK in "${BENCHMARKS[@]}"; do
         N_FLAG="5"
     fi
     
+    POLICY_FLAG=""
+    if [ "$PROTOCOL" == "TARDISTSO_TECTREE" ]; then
+        POLICY_FLAG="--mru-policy=1"
+    fi
+    
     # Esegue gem5
     $GEM5_EXE \
         configs/deprecated/example/se.py \
         -c $REPO_ROOT/tests/test-progs/tardis_tso/x86/microbenchmarks/bin/${BENCHMARK} \
         --options="$OPTIONS_FLAG" \
-        -n $N_FLAG --cpu-type ${ARCH}TimingSimpleCPU --ruby --l2_size=2MB --mem-size=3GB --mru-policy=1
+        -n $N_FLAG --cpu-type ${ARCH}TimingSimpleCPU --ruby --l2_size=2MB --mem-size=3GB $POLICY_FLAG
     
     # Salva i risultati
     RESULT_DIR="results_microbench/stats_${BENCHMARK}"

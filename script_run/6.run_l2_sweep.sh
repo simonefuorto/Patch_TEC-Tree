@@ -57,11 +57,17 @@ for POLICY in "${POLICIES[@]}"; do
         echo "Avvio Test: $PROTOCOL - Policy $POLICY - L2 Size $L2_SIZE"
         echo "----------------------------------------------------------"
         
-        # Esecuzione senza parametri '-n' aggiuntivi per il binario C
+        POLICY_FLAG=""
+        if [ "$PROTOCOL" == "TARDISTSO_TECTREE" ]; then
+            POLICY_FLAG="--mru-policy=$POLICY"
+        fi
+
+        # Esegue gem5 per raccogliere le statistiche
         $GEM5_EXE \
             configs/deprecated/example/se.py \
             -c $REPO_ROOT/tests/test-progs/tardis_tso/x86/microbenchmarks/bin/${WORKLOAD} \
-            -n 5 --cpu-type ${ARCH}TimingSimpleCPU --ruby --l2_size=$L2_SIZE --mem-size=3GB --mru-policy=$POLICY
+            --options="67108864" \
+            -n 5 --cpu-type ${ARCH}TimingSimpleCPU --ruby --l2_size=$L2_SIZE --mem-size=3GB $POLICY_FLAG
         
         RESULT_DIR="results_l2_sweep/stats_Policy${POLICY}_${L2_SIZE}"
         mkdir -p "$RESULT_DIR"
