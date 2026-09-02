@@ -74,7 +74,7 @@ $GEM5_EXE \
     --debug-flags=Tectree \
     configs/deprecated/example/se.py \
     -c "$BIN_FILE" \
-    --cpu-type X86TimingSimpleCPU --ruby --l2_size=8kB --mem-size=3GB $POLICY_FLAG > "$LOG_FILE" 2>&1
+    --cpu-type X86TimingSimpleCPU --ruby --l2_size=8kB --mem-size=3GB $POLICY_FLAG --tectree-arity=15 --crypto-latency=15 > "$LOG_FILE" 2>&1
 
 echo "=========================================================="
 echo "Test Completato!"

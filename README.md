@@ -31,5 +31,8 @@ L'obiettivo primario è la valutazione dell'impatto prestazionale, la gestione a
   - [x] 5.3: Estensione multilivello eviction
 
 ### FASE 3: Verifica e Convalida Finale (PIANIFICATA)
-- [ ] **STEP 6: Analisi di Sensibilità alla Latenza Crittografica**
+- [x] **STEP 6: Analisi di Sensibilità alla Latenza Crittografica**
+  - [x] 6.1: Implementazione flag dinamico `is_ctr_mode` (ECB vs CTR) nel configuration layer (Python).
+  - [x] 6.2: Iniezione asimmetrica delle latenze crittografiche per Dati vs Metadati nell'automa SLICC.
+  - [x] 6.3: Automazione degli sweep (`13.run_crypto_latency_sweep.sh`) e generazione script Python per il plotting comparativo.
 - [ ] **STEP 7: Esecuzione conclusiva dei benchmark**

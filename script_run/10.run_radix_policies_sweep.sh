@@ -67,7 +67,7 @@ for POLICY in "${POLICIES[@]}"; do
         $GEM5_EXE \
             configs/deprecated/example/se.py \
             -c $REPO_ROOT/tests/test-progs/tardis_tso/x86/${WORKLOAD}/bin/${WORKLOAD} \
-            --options="-n $SIZE" \
+            --options="-p 4 -n $SIZE -t" \
             -n 5 --cpu-type ${ARCH}TimingSimpleCPU --ruby --l2_size=1MB --mem-size=3GB $POLICY_FLAG
         
         # Crea una cartella per salvare le statistiche di QUESTA specifica Policy e Dimensione
