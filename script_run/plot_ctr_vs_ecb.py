@@ -84,7 +84,7 @@ def main():
         plt.axvspan(40, 110, color='gray', alpha=0.1)
         plt.text(70, text_y, 'Hardware Sub-Ottimale\n(>40 cicli)', color='black', ha='center', va='bottom', fontsize=10, fontweight='bold')
 
-    plt.title(f'Confronto Architetturale TEC-Tree: CTR vs ECB\n(Radix 16k, 2 Threads, Policy {policy}, Arity 15)', fontsize=14, fontweight='bold')
+    plt.title(f'Confronto Architetturale: CTR vs ECB\n(Radix 16k, 2 Threads, Policy {policy}, Arity 15)', fontsize=14, fontweight='bold')
     plt.xlabel('Latenza Crittografica Hardware (Cicli)', fontsize=12)
     plt.ylabel('Tempo di esecuzione ROI (Millisecondi)', fontsize=12)
 

@@ -34,7 +34,7 @@ if [ ! -d "$DEST" ]; then
 fi
 
 cd "$DEST"
-mkdir -p results_radix
+mkdir -p results_radix_small_llc
 
 echo "=========================================================="
 echo "Inizio Automazione Benchmark Radix (Sweep Arity & Sizes)"
@@ -58,10 +58,10 @@ for ARITY in "${ARITIES[@]}"; do
             configs/deprecated/example/se.py \
             -c tests/test-progs/tardis_tso/${ARCH}/${WORKLOAD}/bin/${WORKLOAD} \
             --options="-p 4 -n $SIZE -t" \
-            -n 5 --cpu-type ${ARCH}TimingSimpleCPU --ruby --l2_size=1MB --mem-size=4GB --mru-policy=0 --tectree-arity=$ARITY --crypto-latency=10 --is-ecb
+            -n 5 --cpu-type ${ARCH}TimingSimpleCPU --ruby --l2_size=32kB --mem-size=4GB --mru-policy=0 --tectree-arity=$ARITY --crypto-latency=10 --is-ecb
         
         # Crea una cartella per salvare le statistiche di questa specifica esecuzione
-        RESULT_DIR="results_radix/stats_${PROTOCOL}_Pol0_arity_${ARITY}_size_${SIZE}"
+        RESULT_DIR="results_radix_small_llc/stats_${PROTOCOL}_Pol0_arity_${ARITY}_size_${SIZE}"
         mkdir -p "$RESULT_DIR"
         
         # Copia il file delle statistiche prima che venga sovrascritto dal test successivo
@@ -73,5 +73,5 @@ done
 
 echo "=========================================================="
 echo "Tutti i test del Radix Arity Sweep sono terminati con successo!"
-echo "I risultati si trovano nella cartella gem5/results_radix/"
+echo "I risultati si trovano nella cartella gem5/results_radix_small_llc/"
 echo "=========================================================="
