@@ -8,7 +8,7 @@ PROTOCOL = "TARDISTSO_TECTREE"
 RESULTS_DIR = "../../gem5/results_radix"
 
 # Struttura dati per memorizzare i risultati
-metrics = ['ROI Ticks', 'Meta Read', 'Meta Write', 'Root Upds', '% DRAM su Tot. Mem']
+metrics = ['ROI Ticks', 'Meta Read', '% DRAM su Tot. Mem']
 data = {m: {s: {a: 0 for a in ARITIES} for s in SIZES} for m in metrics}
 
 for arity in ARITIES:
@@ -62,8 +62,6 @@ for arity in ARITIES:
         # Salva in struttura dati
         data['ROI Ticks'][size][arity] = roi_ticks
         data['Meta Read'][size][arity] = meta_reads
-        data['Meta Write'][size][arity] = meta_writes
-        data['Root Upds'][size][arity] = root_updates
         data['% DRAM su Tot. Mem'][size][arity] = f"{perc_dram:.2f}%"
 
 print("=========================================================================")
@@ -83,10 +81,9 @@ for metric in metrics:
 print("\n=========================================================================")
 print("\n--- ANALISI DELLA SENSITIVITA' ALL'ARIETA' ---")
 print("I dati di particolare interesse estratti sono:")
-print("1. Meta Read / Meta Write: All'aumentare dell'Arietà, la profondità dell'albero decresce, ")
-print("   riducendo drasticamente il numero di fetch (Meta Read) e update (Meta Write) in memoria per i counter.")
+print("1. Meta Read: All'aumentare dell'Arietà, la profondità dell'albero decresce, ")
+print("   riducendo drasticamente il numero di fetch in memoria per i counter.")
 print("2. ROI Ticks: Rappresenta il tempo di esecuzione utile. Più l'arietà sale, meno traffico di metadati si")
 print("   genera, mitigando il collo di bottiglia e abbassando esponenzialmente i Ticks.")
 print("3. % DRAM su Tot. Mem: Indica l'efficienza della banda. Passando da Arity 15 a 63, ")
 print("   la percentuale di accessi utili (Dati veri) sale verso il 98%, isolando l'overhead crittografico.")
-print("4. Root Updates: Indica quanti aggiornamenti sono arrivati fino alla radice dell'albero.")
