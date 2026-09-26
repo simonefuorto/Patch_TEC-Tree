@@ -41,10 +41,13 @@ machine(MachineType:Directory, "Directory protocol")
 	  int root_cnt_1, default="0", desc="Root Slot 1 (L6 ramo 1)";
 	  int root_cnt_2, default="0", desc="Root Slot 2 (L6 ramo 2)";
 	  int mru_policy, default="0";
+	  int tectree_arity, default="15";
 	  
 	  int mts := 1;
 	  int lease;   //Lease to add to the timestamp of a requested block
       Cycles directory_latency := 12;
+      Cycles crypto_latency, default="1";
+      bool is_ctr_mode, default="true";
       Cycles to_memory_controller_latency := 1;
 
     // Forwarding requests from the directory *to* the caches: FLUSH_REQ, WB_REQ
@@ -94,7 +97,6 @@ machine(MachineType:Directory, "Directory protocol")
         E_Evicting, AccessPermission:Busy, desc="A block is waiting for Memory Ack to complete an LLC eviction from E";
 
 		// Stati per l'autenticazione
-        // [REF: STATE_BOUNCING]
         I_Fetch_Auth, AccessPermission:Busy, desc="Waiting for Counter from I";
         S_Fetch_Auth, AccessPermission:Busy, desc="Waiting for Counter from S";
         E_Fetch_Auth, AccessPermission:Busy, desc="Waiting for Counter from E";
@@ -129,7 +131,7 @@ machine(MachineType:Directory, "Directory protocol")
         LLC_Repl_Clean, desc="LLC replacement for a clean block (silent eviction)";
         LLC_Repl_Dirty, desc="LLC replacement for a dirty block (requires writeback)";
 		//Eviction with missing counter
-		LLC_Repl_Dirty_Auth_Miss, desc="Sfratto sporrco  con counter assente";
+		LLC_Repl_Dirty_Auth_Miss, desc="Sfratto sporco  con counter assente";
 		//Events per l'autenticazione dei dati
 		Auth_Miss,       desc="Il counter L1 del blocco non e' in LLC, e deve essere prelevato";
 		LLC_Repl_Dirty_Auth_Hit_From_Flush, desc="Trigger interno dopo FlushRep (Hit)";
@@ -179,7 +181,7 @@ machine(MachineType:Directory, "Directory protocol")
 		MachineID Requestor,   desc="Chi ha richiesto il dato";
 		Addr parentAddress,    desc="Indirizzo del blocco padre da cui deriva il datachunk";
 		
-		// 15 Slot Hardware per gestire i Multi-Sfratti concorrenti (Arity massima)
+		// 16 Slot Hardware per gestire i Multi-Sfratti concorrenti (Arity massima)
 		Addr Waiter0, default="intToAddress(0)";
 		Addr Waiter1, default="intToAddress(0)";
 		Addr Waiter2, default="intToAddress(0)";
@@ -207,6 +209,10 @@ machine(MachineType:Directory, "Directory protocol")
 	
 	//--------------------------------------------------------------------------------------------
 
+
+
+
+    
 
 
 
@@ -240,38 +246,132 @@ machine(MachineType:Directory, "Directory protocol")
         return llc_entry;
     }
 
-    // [REF: ROOT_ARRAY_LOGIC]
     int getL6Index(Addr addr) {
         return (addressToInt(addr) / 64) / 11390625;
     }
-    //Primo livello mancante 
-    Addr getFirstMissingParent(Addr current_addr) {
-        Addr L1 := getParentAddr(current_addr);
-        if (L1 != intToAddress(0)) {
-            if (LLC.isTagPresent(L1) == false) { return L1; }
-            Addr L2 := getParentAddr(L1);
-            if (L2 != intToAddress(0)) {
-                if (LLC.isTagPresent(L2) == false) { return L2; }
-                Addr L3 := getParentAddr(L2);
-                if (L3 != intToAddress(0)) {
-                    if (LLC.isTagPresent(L3) == false) { return L3; }
-                    Addr L4 := getParentAddr(L3);
-                    if (L4 != intToAddress(0)) {
-                        if (LLC.isTagPresent(L4) == false) { return L4; }
-                        Addr L5 := getParentAddr(L4);
-                        if (L5 != intToAddress(0)) {
-                            if (LLC.isTagPresent(L5) == false) { return L5; }
-                            Addr L6 := getParentAddr(L5);
-                            if (L6 != intToAddress(0)) {
-                                if (LLC.isTagPresent(L6) == false) { return L6; }
-                            }
-                        }
-                    }
-                }
-            }
-        }
-        return intToAddress(0);
-    }
+  void updateOneLevel(Addr parent_addr, int level) {
+      if (parent_addr != intToAddress(0) && LLC.isTagPresent(parent_addr)) {
+          getLLCEntry(parent_addr).Dirty := true;
+          getDirectoryEntry(parent_addr).DirState := State:C_M;
+          if (mru_policy == 0) { LLC.setMRU(parent_addr); }
+          else if (mru_policy == 2 && rand() % 10 < (3 + level)) { LLC.setMRU(parent_addr); }
+      }
+  }
+
+  void updateTreeInCache(Addr data_addr) {
+      Addr P1 := getParentAddrDynamic(data_addr, tectree_arity);
+      if (P1 != intToAddress(0) && LLC.isTagPresent(P1)) {
+          updateOneLevel(P1, 0);
+          Addr P2 := getParentAddrDynamic(P1, tectree_arity);
+          if (P2 != intToAddress(0) && LLC.isTagPresent(P2)) {
+              updateOneLevel(P2, 1);
+              Addr P3 := getParentAddrDynamic(P2, tectree_arity);
+              if (P3 != intToAddress(0) && LLC.isTagPresent(P3)) {
+                  updateOneLevel(P3, 2);
+                  Addr P4 := getParentAddrDynamic(P3, tectree_arity);
+                  if (P4 != intToAddress(0) && LLC.isTagPresent(P4)) {
+                      updateOneLevel(P4, 3);
+                      Addr P5 := getParentAddrDynamic(P4, tectree_arity);
+                      if (P5 != intToAddress(0) && LLC.isTagPresent(P5)) {
+                          updateOneLevel(P5, 4);
+                          Addr P6 := getParentAddrDynamic(P5, tectree_arity);
+                          if (P6 != intToAddress(0) && LLC.isTagPresent(P6)) {
+                              updateOneLevel(P6, 5);
+                              Addr P7 := getParentAddrDynamic(P6, tectree_arity);
+                              if (P7 != intToAddress(0) && LLC.isTagPresent(P7)) {
+                                  updateOneLevel(P7, 6);
+                                  Addr P8 := getParentAddrDynamic(P7, tectree_arity);
+                                  if (P8 != intToAddress(0) && LLC.isTagPresent(P8)) {
+                                      updateOneLevel(P8, 7);
+                                      Addr P9 := getParentAddrDynamic(P8, tectree_arity);
+                                      if (P9 != intToAddress(0) && LLC.isTagPresent(P9)) {
+                                          updateOneLevel(P9, 8);
+                                          Addr P10 := getParentAddrDynamic(P9, tectree_arity);
+                                          if (P10 != intToAddress(0) && LLC.isTagPresent(P10)) {
+                                              updateOneLevel(P10, 9);
+                                          }
+                                      }
+                                  }
+                              }
+                          }
+                      }
+                  }
+              }
+          }
+      }
+  }
+
+  Addr getFirstMissingParent(Addr data_addr) {
+      Addr P1 := getParentAddrDynamic(data_addr, tectree_arity);
+      if (P1 == intToAddress(0)) { return intToAddress(0); }
+      if (LLC.isTagPresent(P1) == false) { return P1; }
+      
+      Addr P2 := getParentAddrDynamic(P1, tectree_arity);
+      if (P2 == intToAddress(0)) { return intToAddress(0); }
+      if (LLC.isTagPresent(P2) == false) { return P2; }
+      
+      Addr P3 := getParentAddrDynamic(P2, tectree_arity);
+      if (P3 == intToAddress(0)) { return intToAddress(0); }
+      if (LLC.isTagPresent(P3) == false) { return P3; }
+      
+      Addr P4 := getParentAddrDynamic(P3, tectree_arity);
+      if (P4 == intToAddress(0)) { return intToAddress(0); }
+      if (LLC.isTagPresent(P4) == false) { return P4; }
+      
+      Addr P5 := getParentAddrDynamic(P4, tectree_arity);
+      if (P5 == intToAddress(0)) { return intToAddress(0); }
+      if (LLC.isTagPresent(P5) == false) { return P5; }
+      
+      Addr P6 := getParentAddrDynamic(P5, tectree_arity);
+      if (P6 == intToAddress(0)) { return intToAddress(0); }
+      if (LLC.isTagPresent(P6) == false) { return P6; }
+      
+      Addr P7 := getParentAddrDynamic(P6, tectree_arity);
+      if (P7 == intToAddress(0)) { return intToAddress(0); }
+      if (LLC.isTagPresent(P7) == false) { return P7; }
+      
+      Addr P8 := getParentAddrDynamic(P7, tectree_arity);
+      if (P8 == intToAddress(0)) { return intToAddress(0); }
+      if (LLC.isTagPresent(P8) == false) { return P8; }
+
+      Addr P9 := getParentAddrDynamic(P8, tectree_arity);
+      if (P9 == intToAddress(0)) { return intToAddress(0); }
+      if (LLC.isTagPresent(P9) == false) { return P9; }
+
+      Addr P10 := getParentAddrDynamic(P9, tectree_arity);
+      if (P10 == intToAddress(0)) { return intToAddress(0); }
+      if (LLC.isTagPresent(P10) == false) { return P10; }
+
+      return intToAddress(0);
+  }
+
+  void setMRUTree(Addr data_addr) {
+      Addr P1 := getParentAddrDynamic(data_addr, tectree_arity);
+      if (P1 != intToAddress(0) && LLC.isTagPresent(P1)) {
+          if (mru_policy == 0) { LLC.setMRU(P1); }
+          Addr P2 := getParentAddrDynamic(P1, tectree_arity);
+          if (P2 != intToAddress(0) && LLC.isTagPresent(P2)) {
+              if (mru_policy == 0) { LLC.setMRU(P2); }
+              Addr P3 := getParentAddrDynamic(P2, tectree_arity);
+              if (P3 != intToAddress(0) && LLC.isTagPresent(P3)) {
+                  if (mru_policy == 0) { LLC.setMRU(P3); }
+                  Addr P4 := getParentAddrDynamic(P3, tectree_arity);
+                  if (P4 != intToAddress(0) && LLC.isTagPresent(P4)) {
+                      if (mru_policy == 0) { LLC.setMRU(P4); }
+                      Addr P5 := getParentAddrDynamic(P4, tectree_arity);
+                      if (P5 != intToAddress(0) && LLC.isTagPresent(P5)) {
+                          if (mru_policy == 0) { LLC.setMRU(P5); }
+                          Addr P6 := getParentAddrDynamic(P5, tectree_arity);
+                          if (P6 != intToAddress(0) && LLC.isTagPresent(P6)) {
+                              if (mru_policy == 0) { LLC.setMRU(P6); }
+                          }
+                      }
+                  }
+              }
+          }
+      }
+  }
+
 
 
 	State getState(TBE tbe, LLC_Entry cache_entry, Addr addr) {
@@ -440,7 +540,7 @@ machine(MachineType:Directory, "Directory protocol")
                 } else {
 				    if (in_msg.Type == CoherenceResponseType:FLUSH_REP || in_msg.Type == CoherenceResponseType:WB_REP || in_msg.Type == CoherenceResponseType:PUT_REP) {
                         if (dir_entry.DirState == State:E_Evict_Flush) {
-                            Addr counter_addr := getParentAddr(in_msg.addr);
+                            Addr counter_addr := getParentAddrDynamic(in_msg.addr, tectree_arity);
                             if (LLC.isTagPresent(counter_addr)) {
                                 trigger(Event:LLC_Repl_Dirty_Auth_Hit_From_Flush, in_msg.addr, cache_entry, tbe);
                             } else {
@@ -473,9 +573,8 @@ machine(MachineType:Directory, "Directory protocol")
 						trigger(Event:ShReq_Hit, in_msg.addr, cache_entry, tbe);
 					} else {
 						//Intercettazione Miss: e verifica del counter
-						Addr parent_L1 := getParentAddr(in_msg.addr);
+						Addr parent_L1 := getParentAddrDynamic(in_msg.addr, tectree_arity);
 						bool counter_missing := (parent_L1 != intToAddress(0)) && (LLC.isTagPresent(parent_L1) == false);
-						
 						if (counter_missing) {
 							DPRINTF(Tectree, "[Auth Miss] Dato 0x%x in stallo. Manca il Counter L1 0x%x in LLC.\n", in_msg.addr, parent_L1);
 							trigger(Event:Auth_Miss, in_msg.addr, cache_entry, tbe);
@@ -484,42 +583,36 @@ machine(MachineType:Directory, "Directory protocol")
 								DPRINTF(Tectree, "[Auth Hit] Dato 0x%x procede (SH_REQ). Il Counter L1 0x%x e' in LLC.\n", in_msg.addr, parent_L1);
 								if (mru_policy == 0) {
 	LLC.setMRU(parent_L1);
-	// [REF: TECTREE_MRU_POLICY]
 	} else if (mru_policy == 2 && (rand() % 10 < 3)) { LLC.setMRU(parent_L1); }
-								Addr parent_L2 := getParentAddr(parent_L1);
+								Addr parent_L2 := getParentAddrDynamic(parent_L1, tectree_arity);
 								if (parent_L2 != intToAddress(0) && LLC.isTagPresent(parent_L2)) {
 									if (mru_policy == 0) {
 	LLC.setMRU(parent_L2);
 									DPRINTF(Tectree, "[MRU Update] Auth Hit: Aggiornato MRU del Counter L2 0x%x\n", parent_L2);
-	// [REF: TECTREE_MRU_POLICY]
 	} else if (mru_policy == 2 && (rand() % 10 < 4)) { LLC.setMRU(parent_L2); }
-									Addr parent_L3 := getParentAddr(parent_L2);
+									Addr parent_L3 := getParentAddrDynamic(parent_L2, tectree_arity);
 									if (parent_L3 != intToAddress(0) && LLC.isTagPresent(parent_L3)) {
 										if (mru_policy == 0) {
 	LLC.setMRU(parent_L3);
 										DPRINTF(Tectree, "[MRU Update] Auth Hit: Aggiornato MRU del Counter L3 0x%x\n", parent_L3);
-	// [REF: TECTREE_MRU_POLICY]
 	} else if (mru_policy == 2 && (rand() % 10 < 5)) { LLC.setMRU(parent_L3); }
-										Addr parent_L4 := getParentAddr(parent_L3);
+										Addr parent_L4 := getParentAddrDynamic(parent_L3, tectree_arity);
 										if (parent_L4 != intToAddress(0) && LLC.isTagPresent(parent_L4)) {
 											if (mru_policy == 0) {
 	LLC.setMRU(parent_L4);
 											DPRINTF(Tectree, "[MRU Update] Auth Hit: Aggiornato MRU del Counter L4 0x%x\n", parent_L4);
-	// [REF: TECTREE_MRU_POLICY]
 	} else if (mru_policy == 2 && (rand() % 10 < 6)) { LLC.setMRU(parent_L4); }
-											Addr parent_L5 := getParentAddr(parent_L4);
+											Addr parent_L5 := getParentAddrDynamic(parent_L4, tectree_arity);
 											if (parent_L5 != intToAddress(0) && LLC.isTagPresent(parent_L5)) {
 												if (mru_policy == 0) {
 	LLC.setMRU(parent_L5);
 												DPRINTF(Tectree, "[MRU Update] Auth Hit: Aggiornato MRU del Counter L5 0x%x\n", parent_L5);
-	// [REF: TECTREE_MRU_POLICY]
 	} else if (mru_policy == 2 && (rand() % 10 < 8)) { LLC.setMRU(parent_L5); }
-												Addr parent_L6 := getParentAddr(parent_L5);
+												Addr parent_L6 := getParentAddrDynamic(parent_L5, tectree_arity);
 												if (parent_L6 != intToAddress(0) && LLC.isTagPresent(parent_L6)) {
 													if (mru_policy == 0) {
 	LLC.setMRU(parent_L6);
 													DPRINTF(Tectree, "[MRU Update] Auth Hit: Aggiornato MRU del Counter L6  0x%x\n", parent_L6);
-	// [REF: TECTREE_MRU_POLICY]
 	} else if (mru_policy == 2) { LLC.setMRU(parent_L6); }
 												}
 											}
@@ -538,9 +631,8 @@ machine(MachineType:Directory, "Directory protocol")
 							trigger(Event:ExReq_Hit, in_msg.addr, cache_entry, tbe);
 						} else {
 							// Intercettazione Miss: il Counter c'è?
-							Addr parent_L1 := getParentAddr(in_msg.addr);
+							Addr parent_L1 := getParentAddrDynamic(in_msg.addr, tectree_arity);
 							bool counter_missing := (parent_L1 != intToAddress(0)) && (LLC.isTagPresent(parent_L1) == false);
-							
 							if (counter_missing) {
 								DPRINTF(Tectree, "[Auth Miss] Dato 0x%x in stallo. Manca il Counter L1 0x%x in LLC.\n", in_msg.addr, parent_L1);
 								trigger(Event:Auth_Miss, in_msg.addr, cache_entry, tbe);
@@ -549,44 +641,38 @@ machine(MachineType:Directory, "Directory protocol")
 									DPRINTF(Tectree, "[Auth Hit] Dato 0x%x procede (EX_REQ). Il Counter L1 0x%x e' in LLC.\n", in_msg.addr, parent_L1);
 									if (mru_policy == 0) {
 	LLC.setMRU(parent_L1);
-	// [REF: TECTREE_MRU_POLICY]
 	} else if (mru_policy == 2 && (rand() % 10 < 3)) { LLC.setMRU(parent_L1); }
-									Addr parent_L2 := getParentAddr(parent_L1);
+									Addr parent_L2 := getParentAddrDynamic(parent_L1, tectree_arity);
 									if (parent_L2 != intToAddress(0) && LLC.isTagPresent(parent_L2)) {
 										if (mru_policy == 0) {
 	LLC.setMRU(parent_L2);
 										DPRINTF(Tectree, "[MRU Update] Auth Hit: Aggiornato MRU del Counter L2 0x%x\n", parent_L2);
-	// [REF: TECTREE_MRU_POLICY]
 	} else if (mru_policy == 2 && (rand() % 10 < 4)) { LLC.setMRU(parent_L2); }
-										Addr parent_L3 := getParentAddr(parent_L2);
+										Addr parent_L3 := getParentAddrDynamic(parent_L2, tectree_arity);
 										if (parent_L3 != intToAddress(0) && LLC.isTagPresent(parent_L3)) {
 											if (mru_policy == 0) {
 	LLC.setMRU(parent_L3);
-											DPRINTF(Tectree, "[MRU Update] Auth Hit: Aggiornato MRU del Counter L3 0x%x\n", parent_L3);
-	// [REF: TECTREE_MRU_POLICY]
+										DPRINTF(Tectree, "[MRU Update] Auth Hit: Aggiornato MRU del Counter L3 0x%x\n", parent_L3);
 	} else if (mru_policy == 2 && (rand() % 10 < 5)) { LLC.setMRU(parent_L3); }
-											Addr parent_L4 := getParentAddr(parent_L3);
+											Addr parent_L4 := getParentAddrDynamic(parent_L3, tectree_arity);
 											if (parent_L4 != intToAddress(0) && LLC.isTagPresent(parent_L4)) {
 												if (mru_policy == 0) {
 	LLC.setMRU(parent_L4);
 												
 												DPRINTF(Tectree, "[MRU Update] Auth Hit: Aggiornato MRU del Counter L4 0x%x\n", parent_L4);
-	// [REF: TECTREE_MRU_POLICY]
 	} else if (mru_policy == 2 && (rand() % 10 < 6)) { LLC.setMRU(parent_L4); }
-												Addr parent_L5 := getParentAddr(parent_L4);
+												Addr parent_L5 := getParentAddrDynamic(parent_L4, tectree_arity);
 												if (parent_L5 != intToAddress(0) && LLC.isTagPresent(parent_L5)) {
 													if (mru_policy == 0) {
 	LLC.setMRU(parent_L5);
 													
 													DPRINTF(Tectree, "[MRU Update] Auth Hit: Aggiornato MRU del Counter L5 0x%x\n", parent_L5);
-	// [REF: TECTREE_MRU_POLICY]
 	} else if (mru_policy == 2 && (rand() % 10 < 8)) { LLC.setMRU(parent_L5); }
-													Addr parent_L6 := getParentAddr(parent_L5);
+													Addr parent_L6 := getParentAddrDynamic(parent_L5, tectree_arity);
 													if (parent_L6 != intToAddress(0) && LLC.isTagPresent(parent_L6)) {
 														if (mru_policy == 0) {
 	LLC.setMRU(parent_L6);
 														DPRINTF(Tectree, "[MRU Update] Auth Hit: Aggiornato MRU del Counter L6  0x%x\n", parent_L6);
-	// [REF: TECTREE_MRU_POLICY]
 	} else if (mru_policy == 2) { LLC.setMRU(parent_L6); }
 													}
 												}
@@ -612,17 +698,28 @@ machine(MachineType:Directory, "Directory protocol")
 	// Below are all of the actions that might be taken on a transition.
 	
 	action(sendMemoryRequest, "sMR", desc="Send a memory request to DRAM to get a block"){
-		DPRINTF(RubySlicc, "Send to memory a request with address 0x%x\n", address);
-		peek(request_in, RequestMsg){
-			enqueue(memQueue_out, MemoryMsg, to_memory_controller_latency) {
-				out_msg.addr := address;
-				out_msg.Type := MemoryRequestType:MEMORY_READ;
-				out_msg.Sender := machineID;
-				out_msg.OriginalRequestorMachId := in_msg.Requestor;
-				out_msg.OriginalRequestorAddr := intToAddress(0);
-				out_msg.MessageSize := MessageSizeType:Request_Control;
-				out_msg.Len := 0;
-			}
+        peek(request_in, RequestMsg) {
+            if (is_ctr_mode == false) {
+			    enqueue(memQueue_out, MemoryMsg, to_memory_controller_latency + crypto_latency) {
+				    out_msg.addr := address;
+				    out_msg.Type := MemoryRequestType:MEMORY_READ;
+				    out_msg.Sender := machineID;
+				    out_msg.OriginalRequestorMachId := in_msg.Requestor;
+				    out_msg.OriginalRequestorAddr := intToAddress(0);
+				    out_msg.MessageSize := MessageSizeType:Request_Control;
+				    out_msg.Len := 0;
+			    }
+            } else {
+			    enqueue(memQueue_out, MemoryMsg, to_memory_controller_latency) {
+				    out_msg.addr := address;
+				    out_msg.Type := MemoryRequestType:MEMORY_READ;
+				    out_msg.Sender := machineID;
+				    out_msg.OriginalRequestorMachId := in_msg.Requestor;
+				    out_msg.OriginalRequestorAddr := intToAddress(0);
+				    out_msg.MessageSize := MessageSizeType:Request_Control;
+				    out_msg.Len := 0;
+			    }
+            }
 		}
 	}
 	
@@ -631,7 +728,7 @@ machine(MachineType:Directory, "Directory protocol")
 			Entry dir_entry := getDirectoryEntry(address);
 			DPRINTF(RubySlicc, "Send to %s block 0x%x [%s]\n", tbe.Requestor, address, in_msg.DataBlk);
 			dir_entry.rts := max(dir_entry.rts, dir_entry.wts + lease, tbe.lts + lease);
-            enqueue(response_out, ResponseMsg, 1) {
+            enqueue(response_out, ResponseMsg, 1 + crypto_latency) {
                 out_msg.addr := address;
                 out_msg.Sender := machineID;
                 out_msg.Destination.clear();
@@ -671,7 +768,7 @@ machine(MachineType:Directory, "Directory protocol")
 		peek(memQueue_in, MemoryMsg) {
 			Entry dir_entry := getDirectoryEntry(address);
 			DPRINTF(RubySlicc, "Send to %s block 0x%x [%s]\n", tbe.Requestor, address, in_msg.DataBlk);
-            enqueue(response_out, ResponseMsg, 1) {
+            enqueue(response_out, ResponseMsg, 1 + crypto_latency) {
                 out_msg.addr := address;
                 out_msg.Type := CoherenceResponseType:EX_REP;
                 out_msg.Sender := machineID;
@@ -777,7 +874,7 @@ machine(MachineType:Directory, "Directory protocol")
 	action(sendBlockToMem, "sBTM", desc="When the TM get the block, send it to Memory and wait for the Ack"){
 		DPRINTF(RubySlicc, "Send WB to memory address 0x%x\n", address);
 		peek(response_in, ResponseMsg){
-			enqueue(memQueue_out, MemoryMsg, to_memory_controller_latency) {
+			enqueue(memQueue_out, MemoryMsg, to_memory_controller_latency + crypto_latency) {
 				out_msg.addr := address;
 				out_msg.Type := MemoryRequestType:MEMORY_WB;
 				out_msg.Sender := machineID;
@@ -789,7 +886,7 @@ machine(MachineType:Directory, "Directory protocol")
 
     action(sendBlockToMem_Eviction, "sBTME", desc="Send victim block to Memory for LLC eviction"){
         DPRINTF(TectreeLLC, "LLC WRITEBACK: Invio del blocco 0x%x alla memoria per eviction.\n", address);
-        enqueue(memQueue_out, MemoryMsg, to_memory_controller_latency) {
+        enqueue(memQueue_out, MemoryMsg, to_memory_controller_latency + crypto_latency) {
             out_msg.addr := address;
             out_msg.Type := MemoryRequestType:MEMORY_WB;
             out_msg.Sender := machineID;
@@ -1039,63 +1136,21 @@ machine(MachineType:Directory, "Directory protocol")
 
 
 
-    // [REF: TECTREE_MRU_POLICY]
     action(setMRU, "mru", desc="Set MRU") {
         if (is_valid(cache_entry)) {
             LLC.setMRU(address);
             
-            // SLICC non supporta il "while", quindi srotoliamo il ciclo (max 6 livelli)
-            Addr p1 := getParentAddr(address);
-            if (p1 != intToAddress(0) && LLC.isTagPresent(p1)) {
-                if (mru_policy == 0) {
-	LLC.setMRU(p1);
-	// [REF: TECTREE_MRU_POLICY]
-	} else if (mru_policy == 2 && rand() % 10 < 3) { LLC.setMRU(p1); }
-                Addr p2 := getParentAddr(p1);
-                if (p2 != intToAddress(0) && LLC.isTagPresent(p2)) {
-                    if (mru_policy == 0) {
-	LLC.setMRU(p2);
-	// [REF: TECTREE_MRU_POLICY]
-	} else if (mru_policy == 2 && rand() % 10 < 4) { LLC.setMRU(p2); }
-                    Addr p3 := getParentAddr(p2);
-                    if (p3 != intToAddress(0) && LLC.isTagPresent(p3)) {
-                        if (mru_policy == 0) {
-	LLC.setMRU(p3);
-	// [REF: TECTREE_MRU_POLICY]
-	} else if (mru_policy == 2 && rand() % 10 < 5) { LLC.setMRU(p3); }
-                        Addr p4 := getParentAddr(p3);
-                        if (p4 != intToAddress(0) && LLC.isTagPresent(p4)) {
-                            if (mru_policy == 0) {
-	LLC.setMRU(p4);
-	// [REF: TECTREE_MRU_POLICY]
-	} else if (mru_policy == 2 && rand() % 10 < 6) { LLC.setMRU(p4); }
-                            Addr p5 := getParentAddr(p4);
-                            if (p5 != intToAddress(0) && LLC.isTagPresent(p5)) {
-                                if (mru_policy == 0) {
-	LLC.setMRU(p5);
-	// [REF: TECTREE_MRU_POLICY]
-	} else if (mru_policy == 2 && rand() % 10 < 8) { LLC.setMRU(p5); }
-                                Addr p6 := getParentAddr(p5);
-                                if (p6 != intToAddress(0) && LLC.isTagPresent(p6)) {
-                                    if (mru_policy == 0) {
-	LLC.setMRU(p6);
-	// [REF: TECTREE_MRU_POLICY]
-	} else if (mru_policy == 2) { LLC.setMRU(p6); }
-                                }
-                            }
-                        }
-                    }
-                }
-            } 
+            
+            setMRUTree(address);
         }
     }
 	//--Action per l AuthTBE---------------------------------------------------------
 	action(fetchCounterIfNeeded, "fC", desc="Invia memory read per il counter solo se non in flight") {
 		peek(request_in, RequestMsg) {
-			Addr counter_addr := getParentAddr(address);
+			Addr counter_addr := getParentAddrDynamic(address, tectree_arity);
 			if (AuthTBEs.isPresent(counter_addr) == false) {
 				AuthTBEs.allocate(counter_addr);
-				enqueue(memQueue_out, MemoryMsg, to_memory_controller_latency) {
+				enqueue(memQueue_out, MemoryMsg, to_memory_controller_latency + crypto_latency) {
 					out_msg.addr := counter_addr;
 					out_msg.Type := MemoryRequestType:MEMORY_READ;
 					out_msg.Sender := machineID;
@@ -1114,14 +1169,14 @@ machine(MachineType:Directory, "Directory protocol")
 		Addr counter_addr := getFirstMissingParent(address);
 		if (AuthTBEs.isPresent(counter_addr) == false) {
 			AuthTBEs.allocate(counter_addr);
-			enqueue(memQueue_out, MemoryMsg, to_memory_controller_latency) {
+			enqueue(memQueue_out, MemoryMsg, to_memory_controller_latency + crypto_latency) {
 				out_msg.addr := counter_addr;
 				out_msg.Type := MemoryRequestType:MEMORY_READ;
 				out_msg.Sender := machineID;
 				out_msg.MessageSize := MessageSizeType:Request_Control;
 				out_msg.Len := 0;
 			}
-			DPRINTF(Tectree, "[Sfratto-Counter] Sfratto in sospeso. Fetch per il Counter 0x%x\n", counter_addr);
+			DPRINTF(Tectree, "[4.4 Write-Allocate] Sfratto in sospeso. Fetch per il Counter 0x%x\\n", counter_addr);
 		}
 		
 		// Inseriamo l'indirizzo del Dato (address) nel primo slot libero del Counter
@@ -1152,7 +1207,7 @@ machine(MachineType:Directory, "Directory protocol")
                 if (missing_parent != intToAddress(0)) {
                     if (AuthTBEs.isPresent(missing_parent) == false) {
                         AuthTBEs.allocate(missing_parent);
-                        enqueue(memQueue_out, MemoryMsg, to_memory_controller_latency) {
+                        enqueue(memQueue_out, MemoryMsg, to_memory_controller_latency + crypto_latency) {
                             out_msg.addr := missing_parent;
                             out_msg.Type := MemoryRequestType:MEMORY_READ;
                             out_msg.Sender := machineID;
@@ -1179,53 +1234,47 @@ machine(MachineType:Directory, "Directory protocol")
                     else if (AuthTBEs.lookup_ref(missing_parent).Waiter14 == intToAddress(0)) { AuthTBEs.lookup_ref(missing_parent).Waiter14 := data_addr; }
                     else if (AuthTBEs.lookup_ref(missing_parent).Waiter15 == intToAddress(0)) { AuthTBEs.lookup_ref(missing_parent).Waiter15 := data_addr; }
                 } else {
-                    Addr L1 := getParentAddr(data_addr);
+                    Addr L1 := getParentAddrDynamic(data_addr, tectree_arity);
                     if (L1 != intToAddress(0) && LLC.isTagPresent(L1)) {
                         getLLCEntry(L1).Dirty := true;
                         getDirectoryEntry(L1).DirState := State:C_M;
                         if (mru_policy == 0) {
 	LLC.setMRU(L1);
-	// [REF: TECTREE_MRU_POLICY]
 	} else if (mru_policy == 2 && rand() % 10 < 3) { LLC.setMRU(L1); }
-                        Addr L2 := getParentAddr(L1);
+                        Addr L2 := getParentAddrDynamic(L1, tectree_arity);
                         if (L2 != intToAddress(0) && LLC.isTagPresent(L2)) {
                             getLLCEntry(L2).Dirty := true;
                             getDirectoryEntry(L2).DirState := State:C_M;
                             if (mru_policy == 0) {
 	LLC.setMRU(L2);
-	// [REF: TECTREE_MRU_POLICY]
 	} else if (mru_policy == 2 && rand() % 10 < 4) { LLC.setMRU(L2); }
-                            Addr L3 := getParentAddr(L2);
+                            Addr L3 := getParentAddrDynamic(L2, tectree_arity);
                             if (L3 != intToAddress(0) && LLC.isTagPresent(L3)) {
                                 getLLCEntry(L3).Dirty := true;
                                 getDirectoryEntry(L3).DirState := State:C_M;
                                 if (mru_policy == 0) {
 	LLC.setMRU(L3);
-	// [REF: TECTREE_MRU_POLICY]
 	} else if (mru_policy == 2 && rand() % 10 < 5) { LLC.setMRU(L3); }
-                                Addr L4 := getParentAddr(L3);
+                                Addr L4 := getParentAddrDynamic(L3, tectree_arity);
                                 if (L4 != intToAddress(0) && LLC.isTagPresent(L4)) {
                                     getLLCEntry(L4).Dirty := true;
                                     getDirectoryEntry(L4).DirState := State:C_M;
                                     if (mru_policy == 0) {
 	LLC.setMRU(L4);
-	// [REF: TECTREE_MRU_POLICY]
 	} else if (mru_policy == 2 && rand() % 10 < 6) { LLC.setMRU(L4); }
-                                    Addr L5 := getParentAddr(L4);
+                                    Addr L5 := getParentAddrDynamic(L4, tectree_arity);
                                     if (L5 != intToAddress(0) && LLC.isTagPresent(L5)) {
                                         getLLCEntry(L5).Dirty := true;
                                         getDirectoryEntry(L5).DirState := State:C_M;
                                         if (mru_policy == 0) {
 	LLC.setMRU(L5);
-	// [REF: TECTREE_MRU_POLICY]
 	} else if (mru_policy == 2 && rand() % 10 < 8) { LLC.setMRU(L5); }
-                                        Addr L6 := getParentAddr(L5);
+                                        Addr L6 := getParentAddrDynamic(L5, tectree_arity);
                                         if (L6 != intToAddress(0) && LLC.isTagPresent(L6)) {
                                             getLLCEntry(L6).Dirty := true;
                                             getDirectoryEntry(L6).DirState := State:C_M;
                                             if (mru_policy == 0) {
 	LLC.setMRU(L6);
-	// [REF: TECTREE_MRU_POLICY]
 	} else if (mru_policy == 2) { LLC.setMRU(L6); }
                                         }
                                     }
@@ -1235,7 +1284,7 @@ machine(MachineType:Directory, "Directory protocol")
                     }
                     
                     Entry data_dir_entry := getDirectoryEntry(data_addr);
-                    enqueue(memQueue_out, MemoryMsg, to_memory_controller_latency) {
+                    enqueue(memQueue_out, MemoryMsg, to_memory_controller_latency + crypto_latency) {
                         out_msg.addr := data_addr;
                         out_msg.Type := MemoryRequestType:MEMORY_WB;
                         out_msg.Sender := machineID;
@@ -1262,7 +1311,7 @@ machine(MachineType:Directory, "Directory protocol")
                 if (missing_parent != intToAddress(0)) {
                     if (AuthTBEs.isPresent(missing_parent) == false) {
                         AuthTBEs.allocate(missing_parent);
-                        enqueue(memQueue_out, MemoryMsg, to_memory_controller_latency) {
+                        enqueue(memQueue_out, MemoryMsg, to_memory_controller_latency + crypto_latency) {
                             out_msg.addr := missing_parent;
                             out_msg.Type := MemoryRequestType:MEMORY_READ;
                             out_msg.Sender := machineID;
@@ -1289,53 +1338,47 @@ machine(MachineType:Directory, "Directory protocol")
                     else if (AuthTBEs.lookup_ref(missing_parent).Waiter14 == intToAddress(0)) { AuthTBEs.lookup_ref(missing_parent).Waiter14 := data_addr; }
                     else if (AuthTBEs.lookup_ref(missing_parent).Waiter15 == intToAddress(0)) { AuthTBEs.lookup_ref(missing_parent).Waiter15 := data_addr; }
                 } else {
-                    Addr L1 := getParentAddr(data_addr);
+                    Addr L1 := getParentAddrDynamic(data_addr, tectree_arity);
                     if (L1 != intToAddress(0) && LLC.isTagPresent(L1)) {
                         getLLCEntry(L1).Dirty := true;
                         getDirectoryEntry(L1).DirState := State:C_M;
                         if (mru_policy == 0) {
 	LLC.setMRU(L1);
-	// [REF: TECTREE_MRU_POLICY]
 	} else if (mru_policy == 2 && rand() % 10 < 3) { LLC.setMRU(L1); }
-                        Addr L2 := getParentAddr(L1);
+                        Addr L2 := getParentAddrDynamic(L1, tectree_arity);
                         if (L2 != intToAddress(0) && LLC.isTagPresent(L2)) {
                             getLLCEntry(L2).Dirty := true;
                             getDirectoryEntry(L2).DirState := State:C_M;
                             if (mru_policy == 0) {
 	LLC.setMRU(L2);
-	// [REF: TECTREE_MRU_POLICY]
 	} else if (mru_policy == 2 && rand() % 10 < 4) { LLC.setMRU(L2); }
-                            Addr L3 := getParentAddr(L2);
+                            Addr L3 := getParentAddrDynamic(L2, tectree_arity);
                             if (L3 != intToAddress(0) && LLC.isTagPresent(L3)) {
                                 getLLCEntry(L3).Dirty := true;
                                 getDirectoryEntry(L3).DirState := State:C_M;
                                 if (mru_policy == 0) {
 	LLC.setMRU(L3);
-	// [REF: TECTREE_MRU_POLICY]
 	} else if (mru_policy == 2 && rand() % 10 < 5) { LLC.setMRU(L3); }
-                                Addr L4 := getParentAddr(L3);
+                                Addr L4 := getParentAddrDynamic(L3, tectree_arity);
                                 if (L4 != intToAddress(0) && LLC.isTagPresent(L4)) {
                                     getLLCEntry(L4).Dirty := true;
                                     getDirectoryEntry(L4).DirState := State:C_M;
                                     if (mru_policy == 0) {
 	LLC.setMRU(L4);
-	// [REF: TECTREE_MRU_POLICY]
 	} else if (mru_policy == 2 && rand() % 10 < 6) { LLC.setMRU(L4); }
-                                    Addr L5 := getParentAddr(L4);
+                                    Addr L5 := getParentAddrDynamic(L4, tectree_arity);
                                     if (L5 != intToAddress(0) && LLC.isTagPresent(L5)) {
                                         getLLCEntry(L5).Dirty := true;
                                         getDirectoryEntry(L5).DirState := State:C_M;
                                         if (mru_policy == 0) {
 	LLC.setMRU(L5);
-	// [REF: TECTREE_MRU_POLICY]
 	} else if (mru_policy == 2 && rand() % 10 < 8) { LLC.setMRU(L5); }
-                                        Addr L6 := getParentAddr(L5);
+                                        Addr L6 := getParentAddrDynamic(L5, tectree_arity);
                                         if (L6 != intToAddress(0) && LLC.isTagPresent(L6)) {
                                             getLLCEntry(L6).Dirty := true;
                                             getDirectoryEntry(L6).DirState := State:C_M;
                                             if (mru_policy == 0) {
 	LLC.setMRU(L6);
-	// [REF: TECTREE_MRU_POLICY]
 	} else if (mru_policy == 2) { LLC.setMRU(L6); }
                                         }
                                     }
@@ -1345,7 +1388,7 @@ machine(MachineType:Directory, "Directory protocol")
                     }
                     
                     Entry data_dir_entry := getDirectoryEntry(data_addr);
-                    enqueue(memQueue_out, MemoryMsg, to_memory_controller_latency) {
+                    enqueue(memQueue_out, MemoryMsg, to_memory_controller_latency + crypto_latency) {
                         out_msg.addr := data_addr;
                         out_msg.Type := MemoryRequestType:MEMORY_WB;
                         out_msg.Sender := machineID;
@@ -1372,7 +1415,7 @@ machine(MachineType:Directory, "Directory protocol")
                 if (missing_parent != intToAddress(0)) {
                     if (AuthTBEs.isPresent(missing_parent) == false) {
                         AuthTBEs.allocate(missing_parent);
-                        enqueue(memQueue_out, MemoryMsg, to_memory_controller_latency) {
+                        enqueue(memQueue_out, MemoryMsg, to_memory_controller_latency + crypto_latency) {
                             out_msg.addr := missing_parent;
                             out_msg.Type := MemoryRequestType:MEMORY_READ;
                             out_msg.Sender := machineID;
@@ -1399,53 +1442,47 @@ machine(MachineType:Directory, "Directory protocol")
                     else if (AuthTBEs.lookup_ref(missing_parent).Waiter14 == intToAddress(0)) { AuthTBEs.lookup_ref(missing_parent).Waiter14 := data_addr; }
                     else if (AuthTBEs.lookup_ref(missing_parent).Waiter15 == intToAddress(0)) { AuthTBEs.lookup_ref(missing_parent).Waiter15 := data_addr; }
                 } else {
-                    Addr L1 := getParentAddr(data_addr);
+                    Addr L1 := getParentAddrDynamic(data_addr, tectree_arity);
                     if (L1 != intToAddress(0) && LLC.isTagPresent(L1)) {
                         getLLCEntry(L1).Dirty := true;
                         getDirectoryEntry(L1).DirState := State:C_M;
                         if (mru_policy == 0) {
 	LLC.setMRU(L1);
-	// [REF: TECTREE_MRU_POLICY]
 	} else if (mru_policy == 2 && rand() % 10 < 3) { LLC.setMRU(L1); }
-                        Addr L2 := getParentAddr(L1);
+                        Addr L2 := getParentAddrDynamic(L1, tectree_arity);
                         if (L2 != intToAddress(0) && LLC.isTagPresent(L2)) {
                             getLLCEntry(L2).Dirty := true;
                             getDirectoryEntry(L2).DirState := State:C_M;
                             if (mru_policy == 0) {
 	LLC.setMRU(L2);
-	// [REF: TECTREE_MRU_POLICY]
 	} else if (mru_policy == 2 && rand() % 10 < 4) { LLC.setMRU(L2); }
-                            Addr L3 := getParentAddr(L2);
+                            Addr L3 := getParentAddrDynamic(L2, tectree_arity);
                             if (L3 != intToAddress(0) && LLC.isTagPresent(L3)) {
                                 getLLCEntry(L3).Dirty := true;
                                 getDirectoryEntry(L3).DirState := State:C_M;
                                 if (mru_policy == 0) {
 	LLC.setMRU(L3);
-	// [REF: TECTREE_MRU_POLICY]
 	} else if (mru_policy == 2 && rand() % 10 < 5) { LLC.setMRU(L3); }
-                                Addr L4 := getParentAddr(L3);
+                                Addr L4 := getParentAddrDynamic(L3, tectree_arity);
                                 if (L4 != intToAddress(0) && LLC.isTagPresent(L4)) {
                                     getLLCEntry(L4).Dirty := true;
                                     getDirectoryEntry(L4).DirState := State:C_M;
                                     if (mru_policy == 0) {
 	LLC.setMRU(L4);
-	// [REF: TECTREE_MRU_POLICY]
 	} else if (mru_policy == 2 && rand() % 10 < 6) { LLC.setMRU(L4); }
-                                    Addr L5 := getParentAddr(L4);
+                                    Addr L5 := getParentAddrDynamic(L4, tectree_arity);
                                     if (L5 != intToAddress(0) && LLC.isTagPresent(L5)) {
                                         getLLCEntry(L5).Dirty := true;
                                         getDirectoryEntry(L5).DirState := State:C_M;
                                         if (mru_policy == 0) {
 	LLC.setMRU(L5);
-	// [REF: TECTREE_MRU_POLICY]
 	} else if (mru_policy == 2 && rand() % 10 < 8) { LLC.setMRU(L5); }
-                                        Addr L6 := getParentAddr(L5);
+                                        Addr L6 := getParentAddrDynamic(L5, tectree_arity);
                                         if (L6 != intToAddress(0) && LLC.isTagPresent(L6)) {
                                             getLLCEntry(L6).Dirty := true;
                                             getDirectoryEntry(L6).DirState := State:C_M;
                                             if (mru_policy == 0) {
 	LLC.setMRU(L6);
-	// [REF: TECTREE_MRU_POLICY]
 	} else if (mru_policy == 2) { LLC.setMRU(L6); }
                                         }
                                     }
@@ -1455,7 +1492,7 @@ machine(MachineType:Directory, "Directory protocol")
                     }
                     
                     Entry data_dir_entry := getDirectoryEntry(data_addr);
-                    enqueue(memQueue_out, MemoryMsg, to_memory_controller_latency) {
+                    enqueue(memQueue_out, MemoryMsg, to_memory_controller_latency + crypto_latency) {
                         out_msg.addr := data_addr;
                         out_msg.Type := MemoryRequestType:MEMORY_WB;
                         out_msg.Sender := machineID;
@@ -1482,7 +1519,7 @@ machine(MachineType:Directory, "Directory protocol")
                 if (missing_parent != intToAddress(0)) {
                     if (AuthTBEs.isPresent(missing_parent) == false) {
                         AuthTBEs.allocate(missing_parent);
-                        enqueue(memQueue_out, MemoryMsg, to_memory_controller_latency) {
+                        enqueue(memQueue_out, MemoryMsg, to_memory_controller_latency + crypto_latency) {
                             out_msg.addr := missing_parent;
                             out_msg.Type := MemoryRequestType:MEMORY_READ;
                             out_msg.Sender := machineID;
@@ -1509,53 +1546,47 @@ machine(MachineType:Directory, "Directory protocol")
                     else if (AuthTBEs.lookup_ref(missing_parent).Waiter14 == intToAddress(0)) { AuthTBEs.lookup_ref(missing_parent).Waiter14 := data_addr; }
                     else if (AuthTBEs.lookup_ref(missing_parent).Waiter15 == intToAddress(0)) { AuthTBEs.lookup_ref(missing_parent).Waiter15 := data_addr; }
                 } else {
-                    Addr L1 := getParentAddr(data_addr);
+                    Addr L1 := getParentAddrDynamic(data_addr, tectree_arity);
                     if (L1 != intToAddress(0) && LLC.isTagPresent(L1)) {
                         getLLCEntry(L1).Dirty := true;
                         getDirectoryEntry(L1).DirState := State:C_M;
                         if (mru_policy == 0) {
 	LLC.setMRU(L1);
-	// [REF: TECTREE_MRU_POLICY]
 	} else if (mru_policy == 2 && rand() % 10 < 3) { LLC.setMRU(L1); }
-                        Addr L2 := getParentAddr(L1);
+                        Addr L2 := getParentAddrDynamic(L1, tectree_arity);
                         if (L2 != intToAddress(0) && LLC.isTagPresent(L2)) {
                             getLLCEntry(L2).Dirty := true;
                             getDirectoryEntry(L2).DirState := State:C_M;
                             if (mru_policy == 0) {
 	LLC.setMRU(L2);
-	// [REF: TECTREE_MRU_POLICY]
 	} else if (mru_policy == 2 && rand() % 10 < 4) { LLC.setMRU(L2); }
-                            Addr L3 := getParentAddr(L2);
+                            Addr L3 := getParentAddrDynamic(L2, tectree_arity);
                             if (L3 != intToAddress(0) && LLC.isTagPresent(L3)) {
                                 getLLCEntry(L3).Dirty := true;
                                 getDirectoryEntry(L3).DirState := State:C_M;
                                 if (mru_policy == 0) {
 	LLC.setMRU(L3);
-	// [REF: TECTREE_MRU_POLICY]
 	} else if (mru_policy == 2 && rand() % 10 < 5) { LLC.setMRU(L3); }
-                                Addr L4 := getParentAddr(L3);
+                                Addr L4 := getParentAddrDynamic(L3, tectree_arity);
                                 if (L4 != intToAddress(0) && LLC.isTagPresent(L4)) {
                                     getLLCEntry(L4).Dirty := true;
                                     getDirectoryEntry(L4).DirState := State:C_M;
                                     if (mru_policy == 0) {
 	LLC.setMRU(L4);
-	// [REF: TECTREE_MRU_POLICY]
 	} else if (mru_policy == 2 && rand() % 10 < 6) { LLC.setMRU(L4); }
-                                    Addr L5 := getParentAddr(L4);
+                                    Addr L5 := getParentAddrDynamic(L4, tectree_arity);
                                     if (L5 != intToAddress(0) && LLC.isTagPresent(L5)) {
                                         getLLCEntry(L5).Dirty := true;
                                         getDirectoryEntry(L5).DirState := State:C_M;
                                         if (mru_policy == 0) {
 	LLC.setMRU(L5);
-	// [REF: TECTREE_MRU_POLICY]
 	} else if (mru_policy == 2 && rand() % 10 < 8) { LLC.setMRU(L5); }
-                                        Addr L6 := getParentAddr(L5);
+                                        Addr L6 := getParentAddrDynamic(L5, tectree_arity);
                                         if (L6 != intToAddress(0) && LLC.isTagPresent(L6)) {
                                             getLLCEntry(L6).Dirty := true;
                                             getDirectoryEntry(L6).DirState := State:C_M;
                                             if (mru_policy == 0) {
 	LLC.setMRU(L6);
-	// [REF: TECTREE_MRU_POLICY]
 	} else if (mru_policy == 2) { LLC.setMRU(L6); }
                                         }
                                     }
@@ -1565,7 +1596,7 @@ machine(MachineType:Directory, "Directory protocol")
                     }
                     
                     Entry data_dir_entry := getDirectoryEntry(data_addr);
-                    enqueue(memQueue_out, MemoryMsg, to_memory_controller_latency) {
+                    enqueue(memQueue_out, MemoryMsg, to_memory_controller_latency + crypto_latency) {
                         out_msg.addr := data_addr;
                         out_msg.Type := MemoryRequestType:MEMORY_WB;
                         out_msg.Sender := machineID;
@@ -1592,7 +1623,7 @@ machine(MachineType:Directory, "Directory protocol")
                 if (missing_parent != intToAddress(0)) {
                     if (AuthTBEs.isPresent(missing_parent) == false) {
                         AuthTBEs.allocate(missing_parent);
-                        enqueue(memQueue_out, MemoryMsg, to_memory_controller_latency) {
+                        enqueue(memQueue_out, MemoryMsg, to_memory_controller_latency + crypto_latency) {
                             out_msg.addr := missing_parent;
                             out_msg.Type := MemoryRequestType:MEMORY_READ;
                             out_msg.Sender := machineID;
@@ -1619,53 +1650,47 @@ machine(MachineType:Directory, "Directory protocol")
                     else if (AuthTBEs.lookup_ref(missing_parent).Waiter14 == intToAddress(0)) { AuthTBEs.lookup_ref(missing_parent).Waiter14 := data_addr; }
                     else if (AuthTBEs.lookup_ref(missing_parent).Waiter15 == intToAddress(0)) { AuthTBEs.lookup_ref(missing_parent).Waiter15 := data_addr; }
                 } else {
-                    Addr L1 := getParentAddr(data_addr);
+                    Addr L1 := getParentAddrDynamic(data_addr, tectree_arity);
                     if (L1 != intToAddress(0) && LLC.isTagPresent(L1)) {
                         getLLCEntry(L1).Dirty := true;
                         getDirectoryEntry(L1).DirState := State:C_M;
                         if (mru_policy == 0) {
 	LLC.setMRU(L1);
-	// [REF: TECTREE_MRU_POLICY]
 	} else if (mru_policy == 2 && rand() % 10 < 3) { LLC.setMRU(L1); }
-                        Addr L2 := getParentAddr(L1);
+                        Addr L2 := getParentAddrDynamic(L1, tectree_arity);
                         if (L2 != intToAddress(0) && LLC.isTagPresent(L2)) {
                             getLLCEntry(L2).Dirty := true;
                             getDirectoryEntry(L2).DirState := State:C_M;
                             if (mru_policy == 0) {
 	LLC.setMRU(L2);
-	// [REF: TECTREE_MRU_POLICY]
 	} else if (mru_policy == 2 && rand() % 10 < 4) { LLC.setMRU(L2); }
-                            Addr L3 := getParentAddr(L2);
+                            Addr L3 := getParentAddrDynamic(L2, tectree_arity);
                             if (L3 != intToAddress(0) && LLC.isTagPresent(L3)) {
                                 getLLCEntry(L3).Dirty := true;
                                 getDirectoryEntry(L3).DirState := State:C_M;
                                 if (mru_policy == 0) {
 	LLC.setMRU(L3);
-	// [REF: TECTREE_MRU_POLICY]
 	} else if (mru_policy == 2 && rand() % 10 < 5) { LLC.setMRU(L3); }
-                                Addr L4 := getParentAddr(L3);
+                                Addr L4 := getParentAddrDynamic(L3, tectree_arity);
                                 if (L4 != intToAddress(0) && LLC.isTagPresent(L4)) {
                                     getLLCEntry(L4).Dirty := true;
                                     getDirectoryEntry(L4).DirState := State:C_M;
                                     if (mru_policy == 0) {
 	LLC.setMRU(L4);
-	// [REF: TECTREE_MRU_POLICY]
 	} else if (mru_policy == 2 && rand() % 10 < 6) { LLC.setMRU(L4); }
-                                    Addr L5 := getParentAddr(L4);
+                                    Addr L5 := getParentAddrDynamic(L4, tectree_arity);
                                     if (L5 != intToAddress(0) && LLC.isTagPresent(L5)) {
                                         getLLCEntry(L5).Dirty := true;
                                         getDirectoryEntry(L5).DirState := State:C_M;
                                         if (mru_policy == 0) {
 	LLC.setMRU(L5);
-	// [REF: TECTREE_MRU_POLICY]
 	} else if (mru_policy == 2 && rand() % 10 < 8) { LLC.setMRU(L5); }
-                                        Addr L6 := getParentAddr(L5);
+                                        Addr L6 := getParentAddrDynamic(L5, tectree_arity);
                                         if (L6 != intToAddress(0) && LLC.isTagPresent(L6)) {
                                             getLLCEntry(L6).Dirty := true;
                                             getDirectoryEntry(L6).DirState := State:C_M;
                                             if (mru_policy == 0) {
 	LLC.setMRU(L6);
-	// [REF: TECTREE_MRU_POLICY]
 	} else if (mru_policy == 2) { LLC.setMRU(L6); }
                                         }
                                     }
@@ -1675,7 +1700,7 @@ machine(MachineType:Directory, "Directory protocol")
                     }
                     
                     Entry data_dir_entry := getDirectoryEntry(data_addr);
-                    enqueue(memQueue_out, MemoryMsg, to_memory_controller_latency) {
+                    enqueue(memQueue_out, MemoryMsg, to_memory_controller_latency + crypto_latency) {
                         out_msg.addr := data_addr;
                         out_msg.Type := MemoryRequestType:MEMORY_WB;
                         out_msg.Sender := machineID;
@@ -1702,7 +1727,7 @@ machine(MachineType:Directory, "Directory protocol")
                 if (missing_parent != intToAddress(0)) {
                     if (AuthTBEs.isPresent(missing_parent) == false) {
                         AuthTBEs.allocate(missing_parent);
-                        enqueue(memQueue_out, MemoryMsg, to_memory_controller_latency) {
+                        enqueue(memQueue_out, MemoryMsg, to_memory_controller_latency + crypto_latency) {
                             out_msg.addr := missing_parent;
                             out_msg.Type := MemoryRequestType:MEMORY_READ;
                             out_msg.Sender := machineID;
@@ -1729,53 +1754,47 @@ machine(MachineType:Directory, "Directory protocol")
                     else if (AuthTBEs.lookup_ref(missing_parent).Waiter14 == intToAddress(0)) { AuthTBEs.lookup_ref(missing_parent).Waiter14 := data_addr; }
                     else if (AuthTBEs.lookup_ref(missing_parent).Waiter15 == intToAddress(0)) { AuthTBEs.lookup_ref(missing_parent).Waiter15 := data_addr; }
                 } else {
-                    Addr L1 := getParentAddr(data_addr);
+                    Addr L1 := getParentAddrDynamic(data_addr, tectree_arity);
                     if (L1 != intToAddress(0) && LLC.isTagPresent(L1)) {
                         getLLCEntry(L1).Dirty := true;
                         getDirectoryEntry(L1).DirState := State:C_M;
                         if (mru_policy == 0) {
 	LLC.setMRU(L1);
-	// [REF: TECTREE_MRU_POLICY]
 	} else if (mru_policy == 2 && rand() % 10 < 3) { LLC.setMRU(L1); }
-                        Addr L2 := getParentAddr(L1);
+                        Addr L2 := getParentAddrDynamic(L1, tectree_arity);
                         if (L2 != intToAddress(0) && LLC.isTagPresent(L2)) {
                             getLLCEntry(L2).Dirty := true;
                             getDirectoryEntry(L2).DirState := State:C_M;
                             if (mru_policy == 0) {
 	LLC.setMRU(L2);
-	// [REF: TECTREE_MRU_POLICY]
 	} else if (mru_policy == 2 && rand() % 10 < 4) { LLC.setMRU(L2); }
-                            Addr L3 := getParentAddr(L2);
+                            Addr L3 := getParentAddrDynamic(L2, tectree_arity);
                             if (L3 != intToAddress(0) && LLC.isTagPresent(L3)) {
                                 getLLCEntry(L3).Dirty := true;
                                 getDirectoryEntry(L3).DirState := State:C_M;
                                 if (mru_policy == 0) {
 	LLC.setMRU(L3);
-	// [REF: TECTREE_MRU_POLICY]
 	} else if (mru_policy == 2 && rand() % 10 < 5) { LLC.setMRU(L3); }
-                                Addr L4 := getParentAddr(L3);
+                                Addr L4 := getParentAddrDynamic(L3, tectree_arity);
                                 if (L4 != intToAddress(0) && LLC.isTagPresent(L4)) {
                                     getLLCEntry(L4).Dirty := true;
                                     getDirectoryEntry(L4).DirState := State:C_M;
                                     if (mru_policy == 0) {
 	LLC.setMRU(L4);
-	// [REF: TECTREE_MRU_POLICY]
 	} else if (mru_policy == 2 && rand() % 10 < 6) { LLC.setMRU(L4); }
-                                    Addr L5 := getParentAddr(L4);
+                                    Addr L5 := getParentAddrDynamic(L4, tectree_arity);
                                     if (L5 != intToAddress(0) && LLC.isTagPresent(L5)) {
                                         getLLCEntry(L5).Dirty := true;
                                         getDirectoryEntry(L5).DirState := State:C_M;
                                         if (mru_policy == 0) {
 	LLC.setMRU(L5);
-	// [REF: TECTREE_MRU_POLICY]
 	} else if (mru_policy == 2 && rand() % 10 < 8) { LLC.setMRU(L5); }
-                                        Addr L6 := getParentAddr(L5);
+                                        Addr L6 := getParentAddrDynamic(L5, tectree_arity);
                                         if (L6 != intToAddress(0) && LLC.isTagPresent(L6)) {
                                             getLLCEntry(L6).Dirty := true;
                                             getDirectoryEntry(L6).DirState := State:C_M;
                                             if (mru_policy == 0) {
 	LLC.setMRU(L6);
-	// [REF: TECTREE_MRU_POLICY]
 	} else if (mru_policy == 2) { LLC.setMRU(L6); }
                                         }
                                     }
@@ -1785,7 +1804,7 @@ machine(MachineType:Directory, "Directory protocol")
                     }
                     
                     Entry data_dir_entry := getDirectoryEntry(data_addr);
-                    enqueue(memQueue_out, MemoryMsg, to_memory_controller_latency) {
+                    enqueue(memQueue_out, MemoryMsg, to_memory_controller_latency + crypto_latency) {
                         out_msg.addr := data_addr;
                         out_msg.Type := MemoryRequestType:MEMORY_WB;
                         out_msg.Sender := machineID;
@@ -1812,7 +1831,7 @@ machine(MachineType:Directory, "Directory protocol")
                 if (missing_parent != intToAddress(0)) {
                     if (AuthTBEs.isPresent(missing_parent) == false) {
                         AuthTBEs.allocate(missing_parent);
-                        enqueue(memQueue_out, MemoryMsg, to_memory_controller_latency) {
+                        enqueue(memQueue_out, MemoryMsg, to_memory_controller_latency + crypto_latency) {
                             out_msg.addr := missing_parent;
                             out_msg.Type := MemoryRequestType:MEMORY_READ;
                             out_msg.Sender := machineID;
@@ -1839,59 +1858,53 @@ machine(MachineType:Directory, "Directory protocol")
                     else if (AuthTBEs.lookup_ref(missing_parent).Waiter14 == intToAddress(0)) { AuthTBEs.lookup_ref(missing_parent).Waiter14 := data_addr; }
                     else if (AuthTBEs.lookup_ref(missing_parent).Waiter15 == intToAddress(0)) { AuthTBEs.lookup_ref(missing_parent).Waiter15 := data_addr; }
                 } else {
-                    Addr L1 := getParentAddr(data_addr);
+                    Addr L1 := getParentAddrDynamic(data_addr, tectree_arity);
                     if (L1 != intToAddress(0) && LLC.isTagPresent(L1)) {
                         getLLCEntry(L1).Dirty := true;
                         getDirectoryEntry(L1).DirState := State:C_M;
                         if (mru_policy == 0) {
 	LLC.setMRU(L1);
                         DPRINTF(Tectree, "[Counter-Hit] Counter L1 0x%x incrementato a C_M per il FlushRep del blocco dati 0x%x\n", L1, data_addr);
-	// [REF: TECTREE_MRU_POLICY]
 	} else if (mru_policy == 2 && rand() % 10 < 3) { LLC.setMRU(L1); }
-                        Addr L2 := getParentAddr(L1);
+                        Addr L2 := getParentAddrDynamic(L1, tectree_arity);
                         if (L2 != intToAddress(0) && LLC.isTagPresent(L2)) {
                             getLLCEntry(L2).Dirty := true;
                             getDirectoryEntry(L2).DirState := State:C_M;
                             if (mru_policy == 0) {
 	LLC.setMRU(L2);
                             DPRINTF(Tectree, "[Counter-Hit] Counter L2 0x%x incrementato a C_M\n", L2);
-	// [REF: TECTREE_MRU_POLICY]
 	} else if (mru_policy == 2 && rand() % 10 < 4) { LLC.setMRU(L2); }
-                            Addr L3 := getParentAddr(L2);
+                            Addr L3 := getParentAddrDynamic(L2, tectree_arity);
                             if (L3 != intToAddress(0) && LLC.isTagPresent(L3)) {
                                 getLLCEntry(L3).Dirty := true;
                                 getDirectoryEntry(L3).DirState := State:C_M;
                                 if (mru_policy == 0) {
 	LLC.setMRU(L3);
                                 DPRINTF(Tectree, "[Counter-Hit] Counter L3 0x%x incrementato a C_M\n", L3);
-	// [REF: TECTREE_MRU_POLICY]
 	} else if (mru_policy == 2 && rand() % 10 < 5) { LLC.setMRU(L3); }
-                                Addr L4 := getParentAddr(L3);
+                                Addr L4 := getParentAddrDynamic(L3, tectree_arity);
                                 if (L4 != intToAddress(0) && LLC.isTagPresent(L4)) {
                                     getLLCEntry(L4).Dirty := true;
                                     getDirectoryEntry(L4).DirState := State:C_M;
                                     if (mru_policy == 0) {
 	LLC.setMRU(L4);
                                     DPRINTF(Tectree, "[Counter-Hit] Counter L4 0x%x incrementato a C_M\n", L4);
-	// [REF: TECTREE_MRU_POLICY]
 	} else if (mru_policy == 2 && rand() % 10 < 6) { LLC.setMRU(L4); }
-                                    Addr L5 := getParentAddr(L4);
+                                    Addr L5 := getParentAddrDynamic(L4, tectree_arity);
                                     if (L5 != intToAddress(0) && LLC.isTagPresent(L5)) {
                                         getLLCEntry(L5).Dirty := true;
                                         getDirectoryEntry(L5).DirState := State:C_M;
                                         if (mru_policy == 0) {
 	LLC.setMRU(L5);
                                         DPRINTF(Tectree, "[Counter-Hit] Counter L5 0x%x incrementato a C_M\n", L5);
-	// [REF: TECTREE_MRU_POLICY]
 	} else if (mru_policy == 2 && rand() % 10 < 8) { LLC.setMRU(L5); }
-                                        Addr L6 := getParentAddr(L5);
+                                        Addr L6 := getParentAddrDynamic(L5, tectree_arity);
                                         if (L6 != intToAddress(0) && LLC.isTagPresent(L6)) {
                                             getLLCEntry(L6).Dirty := true;
                                             getDirectoryEntry(L6).DirState := State:C_M;
                                             if (mru_policy == 0) {
 	LLC.setMRU(L6);
                                             DPRINTF(Tectree, "[Counter-Hit] Counter L6 0x%x incrementato a C_M\n", L6);
-	// [REF: TECTREE_MRU_POLICY]
 	} else if (mru_policy == 2) { LLC.setMRU(L6); }
                                         }
                                     }
@@ -1901,7 +1914,7 @@ machine(MachineType:Directory, "Directory protocol")
                     }
                     
                     Entry data_dir_entry := getDirectoryEntry(data_addr);
-                    enqueue(memQueue_out, MemoryMsg, to_memory_controller_latency) {
+                    enqueue(memQueue_out, MemoryMsg, to_memory_controller_latency + crypto_latency) {
                         out_msg.addr := data_addr;
                         out_msg.Type := MemoryRequestType:MEMORY_WB;
                         out_msg.Sender := machineID;
@@ -1928,7 +1941,7 @@ machine(MachineType:Directory, "Directory protocol")
                 if (missing_parent != intToAddress(0)) {
                     if (AuthTBEs.isPresent(missing_parent) == false) {
                         AuthTBEs.allocate(missing_parent);
-                        enqueue(memQueue_out, MemoryMsg, to_memory_controller_latency) {
+                        enqueue(memQueue_out, MemoryMsg, to_memory_controller_latency + crypto_latency) {
                             out_msg.addr := missing_parent;
                             out_msg.Type := MemoryRequestType:MEMORY_READ;
                             out_msg.Sender := machineID;
@@ -1955,53 +1968,47 @@ machine(MachineType:Directory, "Directory protocol")
                     else if (AuthTBEs.lookup_ref(missing_parent).Waiter14 == intToAddress(0)) { AuthTBEs.lookup_ref(missing_parent).Waiter14 := data_addr; }
                     else if (AuthTBEs.lookup_ref(missing_parent).Waiter15 == intToAddress(0)) { AuthTBEs.lookup_ref(missing_parent).Waiter15 := data_addr; }
                 } else {
-                    Addr L1 := getParentAddr(data_addr);
+                    Addr L1 := getParentAddrDynamic(data_addr, tectree_arity);
                     if (L1 != intToAddress(0) && LLC.isTagPresent(L1)) {
                         getLLCEntry(L1).Dirty := true;
                         getDirectoryEntry(L1).DirState := State:C_M;
                         if (mru_policy == 0) {
 	LLC.setMRU(L1);
-	// [REF: TECTREE_MRU_POLICY]
 	} else if (mru_policy == 2 && rand() % 10 < 3) { LLC.setMRU(L1); }
-                        Addr L2 := getParentAddr(L1);
+                        Addr L2 := getParentAddrDynamic(L1, tectree_arity);
                         if (L2 != intToAddress(0) && LLC.isTagPresent(L2)) {
                             getLLCEntry(L2).Dirty := true;
                             getDirectoryEntry(L2).DirState := State:C_M;
                             if (mru_policy == 0) {
 	LLC.setMRU(L2);
-	// [REF: TECTREE_MRU_POLICY]
 	} else if (mru_policy == 2 && rand() % 10 < 4) { LLC.setMRU(L2); }
-                            Addr L3 := getParentAddr(L2);
+                            Addr L3 := getParentAddrDynamic(L2, tectree_arity);
                             if (L3 != intToAddress(0) && LLC.isTagPresent(L3)) {
                                 getLLCEntry(L3).Dirty := true;
                                 getDirectoryEntry(L3).DirState := State:C_M;
                                 if (mru_policy == 0) {
 	LLC.setMRU(L3);
-	// [REF: TECTREE_MRU_POLICY]
 	} else if (mru_policy == 2 && rand() % 10 < 5) { LLC.setMRU(L3); }
-                                Addr L4 := getParentAddr(L3);
+                                Addr L4 := getParentAddrDynamic(L3, tectree_arity);
                                 if (L4 != intToAddress(0) && LLC.isTagPresent(L4)) {
                                     getLLCEntry(L4).Dirty := true;
                                     getDirectoryEntry(L4).DirState := State:C_M;
                                     if (mru_policy == 0) {
 	LLC.setMRU(L4);
-	// [REF: TECTREE_MRU_POLICY]
 	} else if (mru_policy == 2 && rand() % 10 < 6) { LLC.setMRU(L4); }
-                                    Addr L5 := getParentAddr(L4);
+                                    Addr L5 := getParentAddrDynamic(L4, tectree_arity);
                                     if (L5 != intToAddress(0) && LLC.isTagPresent(L5)) {
                                         getLLCEntry(L5).Dirty := true;
                                         getDirectoryEntry(L5).DirState := State:C_M;
                                         if (mru_policy == 0) {
 	LLC.setMRU(L5);
-	// [REF: TECTREE_MRU_POLICY]
 	} else if (mru_policy == 2 && rand() % 10 < 8) { LLC.setMRU(L5); }
-                                        Addr L6 := getParentAddr(L5);
+                                        Addr L6 := getParentAddrDynamic(L5, tectree_arity);
                                         if (L6 != intToAddress(0) && LLC.isTagPresent(L6)) {
                                             getLLCEntry(L6).Dirty := true;
                                             getDirectoryEntry(L6).DirState := State:C_M;
                                             if (mru_policy == 0) {
 	LLC.setMRU(L6);
-	// [REF: TECTREE_MRU_POLICY]
 	} else if (mru_policy == 2) { LLC.setMRU(L6); }
                                         }
                                     }
@@ -2011,7 +2018,7 @@ machine(MachineType:Directory, "Directory protocol")
                     }
                     
                     Entry data_dir_entry := getDirectoryEntry(data_addr);
-                    enqueue(memQueue_out, MemoryMsg, to_memory_controller_latency) {
+                    enqueue(memQueue_out, MemoryMsg, to_memory_controller_latency + crypto_latency) {
                         out_msg.addr := data_addr;
                         out_msg.Type := MemoryRequestType:MEMORY_WB;
                         out_msg.Sender := machineID;
@@ -2038,7 +2045,7 @@ machine(MachineType:Directory, "Directory protocol")
                 if (missing_parent != intToAddress(0)) {
                     if (AuthTBEs.isPresent(missing_parent) == false) {
                         AuthTBEs.allocate(missing_parent);
-                        enqueue(memQueue_out, MemoryMsg, to_memory_controller_latency) {
+                        enqueue(memQueue_out, MemoryMsg, to_memory_controller_latency + crypto_latency) {
                             out_msg.addr := missing_parent;
                             out_msg.Type := MemoryRequestType:MEMORY_READ;
                             out_msg.Sender := machineID;
@@ -2065,53 +2072,47 @@ machine(MachineType:Directory, "Directory protocol")
                     else if (AuthTBEs.lookup_ref(missing_parent).Waiter14 == intToAddress(0)) { AuthTBEs.lookup_ref(missing_parent).Waiter14 := data_addr; }
                     else if (AuthTBEs.lookup_ref(missing_parent).Waiter15 == intToAddress(0)) { AuthTBEs.lookup_ref(missing_parent).Waiter15 := data_addr; }
                 } else {
-                    Addr L1 := getParentAddr(data_addr);
+                    Addr L1 := getParentAddrDynamic(data_addr, tectree_arity);
                     if (L1 != intToAddress(0) && LLC.isTagPresent(L1)) {
                         getLLCEntry(L1).Dirty := true;
                         getDirectoryEntry(L1).DirState := State:C_M;
                         if (mru_policy == 0) {
 	LLC.setMRU(L1);
-	// [REF: TECTREE_MRU_POLICY]
 	} else if (mru_policy == 2 && rand() % 10 < 3) { LLC.setMRU(L1); }
-                        Addr L2 := getParentAddr(L1);
+                        Addr L2 := getParentAddrDynamic(L1, tectree_arity);
                         if (L2 != intToAddress(0) && LLC.isTagPresent(L2)) {
                             getLLCEntry(L2).Dirty := true;
                             getDirectoryEntry(L2).DirState := State:C_M;
                             if (mru_policy == 0) {
 	LLC.setMRU(L2);
-	// [REF: TECTREE_MRU_POLICY]
 	} else if (mru_policy == 2 && rand() % 10 < 4) { LLC.setMRU(L2); }
-                            Addr L3 := getParentAddr(L2);
+                            Addr L3 := getParentAddrDynamic(L2, tectree_arity);
                             if (L3 != intToAddress(0) && LLC.isTagPresent(L3)) {
                                 getLLCEntry(L3).Dirty := true;
                                 getDirectoryEntry(L3).DirState := State:C_M;
                                 if (mru_policy == 0) {
 	LLC.setMRU(L3);
-	// [REF: TECTREE_MRU_POLICY]
 	} else if (mru_policy == 2 && rand() % 10 < 5) { LLC.setMRU(L3); }
-                                Addr L4 := getParentAddr(L3);
+                                Addr L4 := getParentAddrDynamic(L3, tectree_arity);
                                 if (L4 != intToAddress(0) && LLC.isTagPresent(L4)) {
                                     getLLCEntry(L4).Dirty := true;
                                     getDirectoryEntry(L4).DirState := State:C_M;
                                     if (mru_policy == 0) {
 	LLC.setMRU(L4);
-	// [REF: TECTREE_MRU_POLICY]
 	} else if (mru_policy == 2 && rand() % 10 < 6) { LLC.setMRU(L4); }
-                                    Addr L5 := getParentAddr(L4);
+                                    Addr L5 := getParentAddrDynamic(L4, tectree_arity);
                                     if (L5 != intToAddress(0) && LLC.isTagPresent(L5)) {
                                         getLLCEntry(L5).Dirty := true;
                                         getDirectoryEntry(L5).DirState := State:C_M;
                                         if (mru_policy == 0) {
 	LLC.setMRU(L5);
-	// [REF: TECTREE_MRU_POLICY]
 	} else if (mru_policy == 2 && rand() % 10 < 8) { LLC.setMRU(L5); }
-                                        Addr L6 := getParentAddr(L5);
+                                        Addr L6 := getParentAddrDynamic(L5, tectree_arity);
                                         if (L6 != intToAddress(0) && LLC.isTagPresent(L6)) {
                                             getLLCEntry(L6).Dirty := true;
                                             getDirectoryEntry(L6).DirState := State:C_M;
                                             if (mru_policy == 0) {
 	LLC.setMRU(L6);
-	// [REF: TECTREE_MRU_POLICY]
 	} else if (mru_policy == 2) { LLC.setMRU(L6); }
                                         }
                                     }
@@ -2121,7 +2122,7 @@ machine(MachineType:Directory, "Directory protocol")
                     }
                     
                     Entry data_dir_entry := getDirectoryEntry(data_addr);
-                    enqueue(memQueue_out, MemoryMsg, to_memory_controller_latency) {
+                    enqueue(memQueue_out, MemoryMsg, to_memory_controller_latency + crypto_latency) {
                         out_msg.addr := data_addr;
                         out_msg.Type := MemoryRequestType:MEMORY_WB;
                         out_msg.Sender := machineID;
@@ -2148,7 +2149,7 @@ machine(MachineType:Directory, "Directory protocol")
                 if (missing_parent != intToAddress(0)) {
                     if (AuthTBEs.isPresent(missing_parent) == false) {
                         AuthTBEs.allocate(missing_parent);
-                        enqueue(memQueue_out, MemoryMsg, to_memory_controller_latency) {
+                        enqueue(memQueue_out, MemoryMsg, to_memory_controller_latency + crypto_latency) {
                             out_msg.addr := missing_parent;
                             out_msg.Type := MemoryRequestType:MEMORY_READ;
                             out_msg.Sender := machineID;
@@ -2175,53 +2176,47 @@ machine(MachineType:Directory, "Directory protocol")
                     else if (AuthTBEs.lookup_ref(missing_parent).Waiter14 == intToAddress(0)) { AuthTBEs.lookup_ref(missing_parent).Waiter14 := data_addr; }
                     else if (AuthTBEs.lookup_ref(missing_parent).Waiter15 == intToAddress(0)) { AuthTBEs.lookup_ref(missing_parent).Waiter15 := data_addr; }
                 } else {
-                    Addr L1 := getParentAddr(data_addr);
+                    Addr L1 := getParentAddrDynamic(data_addr, tectree_arity);
                     if (L1 != intToAddress(0) && LLC.isTagPresent(L1)) {
                         getLLCEntry(L1).Dirty := true;
                         getDirectoryEntry(L1).DirState := State:C_M;
                         if (mru_policy == 0) {
 	LLC.setMRU(L1);
-	// [REF: TECTREE_MRU_POLICY]
 	} else if (mru_policy == 2 && rand() % 10 < 3) { LLC.setMRU(L1); }
-                        Addr L2 := getParentAddr(L1);
+                        Addr L2 := getParentAddrDynamic(L1, tectree_arity);
                         if (L2 != intToAddress(0) && LLC.isTagPresent(L2)) {
                             getLLCEntry(L2).Dirty := true;
                             getDirectoryEntry(L2).DirState := State:C_M;
                             if (mru_policy == 0) {
 	LLC.setMRU(L2);
-	// [REF: TECTREE_MRU_POLICY]
 	} else if (mru_policy == 2 && rand() % 10 < 4) { LLC.setMRU(L2); }
-                            Addr L3 := getParentAddr(L2);
+                            Addr L3 := getParentAddrDynamic(L2, tectree_arity);
                             if (L3 != intToAddress(0) && LLC.isTagPresent(L3)) {
                                 getLLCEntry(L3).Dirty := true;
                                 getDirectoryEntry(L3).DirState := State:C_M;
                                 if (mru_policy == 0) {
 	LLC.setMRU(L3);
-	// [REF: TECTREE_MRU_POLICY]
 	} else if (mru_policy == 2 && rand() % 10 < 5) { LLC.setMRU(L3); }
-                                Addr L4 := getParentAddr(L3);
+                                Addr L4 := getParentAddrDynamic(L3, tectree_arity);
                                 if (L4 != intToAddress(0) && LLC.isTagPresent(L4)) {
                                     getLLCEntry(L4).Dirty := true;
                                     getDirectoryEntry(L4).DirState := State:C_M;
                                     if (mru_policy == 0) {
 	LLC.setMRU(L4);
-	// [REF: TECTREE_MRU_POLICY]
 	} else if (mru_policy == 2 && rand() % 10 < 6) { LLC.setMRU(L4); }
-                                    Addr L5 := getParentAddr(L4);
+                                    Addr L5 := getParentAddrDynamic(L4, tectree_arity);
                                     if (L5 != intToAddress(0) && LLC.isTagPresent(L5)) {
                                         getLLCEntry(L5).Dirty := true;
                                         getDirectoryEntry(L5).DirState := State:C_M;
                                         if (mru_policy == 0) {
 	LLC.setMRU(L5);
-	// [REF: TECTREE_MRU_POLICY]
 	} else if (mru_policy == 2 && rand() % 10 < 8) { LLC.setMRU(L5); }
-                                        Addr L6 := getParentAddr(L5);
+                                        Addr L6 := getParentAddrDynamic(L5, tectree_arity);
                                         if (L6 != intToAddress(0) && LLC.isTagPresent(L6)) {
                                             getLLCEntry(L6).Dirty := true;
                                             getDirectoryEntry(L6).DirState := State:C_M;
                                             if (mru_policy == 0) {
 	LLC.setMRU(L6);
-	// [REF: TECTREE_MRU_POLICY]
 	} else if (mru_policy == 2) { LLC.setMRU(L6); }
                                         }
                                     }
@@ -2231,7 +2226,7 @@ machine(MachineType:Directory, "Directory protocol")
                     }
                     
                     Entry data_dir_entry := getDirectoryEntry(data_addr);
-                    enqueue(memQueue_out, MemoryMsg, to_memory_controller_latency) {
+                    enqueue(memQueue_out, MemoryMsg, to_memory_controller_latency + crypto_latency) {
                         out_msg.addr := data_addr;
                         out_msg.Type := MemoryRequestType:MEMORY_WB;
                         out_msg.Sender := machineID;
@@ -2258,7 +2253,7 @@ machine(MachineType:Directory, "Directory protocol")
                 if (missing_parent != intToAddress(0)) {
                     if (AuthTBEs.isPresent(missing_parent) == false) {
                         AuthTBEs.allocate(missing_parent);
-                        enqueue(memQueue_out, MemoryMsg, to_memory_controller_latency) {
+                        enqueue(memQueue_out, MemoryMsg, to_memory_controller_latency + crypto_latency) {
                             out_msg.addr := missing_parent;
                             out_msg.Type := MemoryRequestType:MEMORY_READ;
                             out_msg.Sender := machineID;
@@ -2285,53 +2280,47 @@ machine(MachineType:Directory, "Directory protocol")
                     else if (AuthTBEs.lookup_ref(missing_parent).Waiter14 == intToAddress(0)) { AuthTBEs.lookup_ref(missing_parent).Waiter14 := data_addr; }
                     else if (AuthTBEs.lookup_ref(missing_parent).Waiter15 == intToAddress(0)) { AuthTBEs.lookup_ref(missing_parent).Waiter15 := data_addr; }
                 } else {
-                    Addr L1 := getParentAddr(data_addr);
+                    Addr L1 := getParentAddrDynamic(data_addr, tectree_arity);
                     if (L1 != intToAddress(0) && LLC.isTagPresent(L1)) {
                         getLLCEntry(L1).Dirty := true;
                         getDirectoryEntry(L1).DirState := State:C_M;
                         if (mru_policy == 0) {
 	LLC.setMRU(L1);
-	// [REF: TECTREE_MRU_POLICY]
 	} else if (mru_policy == 2 && rand() % 10 < 3) { LLC.setMRU(L1); }
-                        Addr L2 := getParentAddr(L1);
+                        Addr L2 := getParentAddrDynamic(L1, tectree_arity);
                         if (L2 != intToAddress(0) && LLC.isTagPresent(L2)) {
                             getLLCEntry(L2).Dirty := true;
                             getDirectoryEntry(L2).DirState := State:C_M;
                             if (mru_policy == 0) {
 	LLC.setMRU(L2);
-	// [REF: TECTREE_MRU_POLICY]
 	} else if (mru_policy == 2 && rand() % 10 < 4) { LLC.setMRU(L2); }
-                            Addr L3 := getParentAddr(L2);
+                            Addr L3 := getParentAddrDynamic(L2, tectree_arity);
                             if (L3 != intToAddress(0) && LLC.isTagPresent(L3)) {
                                 getLLCEntry(L3).Dirty := true;
                                 getDirectoryEntry(L3).DirState := State:C_M;
                                 if (mru_policy == 0) {
 	LLC.setMRU(L3);
-	// [REF: TECTREE_MRU_POLICY]
 	} else if (mru_policy == 2 && rand() % 10 < 5) { LLC.setMRU(L3); }
-                                Addr L4 := getParentAddr(L3);
+                                Addr L4 := getParentAddrDynamic(L3, tectree_arity);
                                 if (L4 != intToAddress(0) && LLC.isTagPresent(L4)) {
                                     getLLCEntry(L4).Dirty := true;
                                     getDirectoryEntry(L4).DirState := State:C_M;
                                     if (mru_policy == 0) {
 	LLC.setMRU(L4);
-	// [REF: TECTREE_MRU_POLICY]
 	} else if (mru_policy == 2 && rand() % 10 < 6) { LLC.setMRU(L4); }
-                                    Addr L5 := getParentAddr(L4);
+                                    Addr L5 := getParentAddrDynamic(L4, tectree_arity);
                                     if (L5 != intToAddress(0) && LLC.isTagPresent(L5)) {
                                         getLLCEntry(L5).Dirty := true;
                                         getDirectoryEntry(L5).DirState := State:C_M;
                                         if (mru_policy == 0) {
 	LLC.setMRU(L5);
-	// [REF: TECTREE_MRU_POLICY]
 	} else if (mru_policy == 2 && rand() % 10 < 8) { LLC.setMRU(L5); }
-                                        Addr L6 := getParentAddr(L5);
+                                        Addr L6 := getParentAddrDynamic(L5, tectree_arity);
                                         if (L6 != intToAddress(0) && LLC.isTagPresent(L6)) {
                                             getLLCEntry(L6).Dirty := true;
                                             getDirectoryEntry(L6).DirState := State:C_M;
                                             if (mru_policy == 0) {
 	LLC.setMRU(L6);
-	// [REF: TECTREE_MRU_POLICY]
 	} else if (mru_policy == 2) { LLC.setMRU(L6); }
                                         }
                                     }
@@ -2341,7 +2330,7 @@ machine(MachineType:Directory, "Directory protocol")
                     }
                     
                     Entry data_dir_entry := getDirectoryEntry(data_addr);
-                    enqueue(memQueue_out, MemoryMsg, to_memory_controller_latency) {
+                    enqueue(memQueue_out, MemoryMsg, to_memory_controller_latency + crypto_latency) {
                         out_msg.addr := data_addr;
                         out_msg.Type := MemoryRequestType:MEMORY_WB;
                         out_msg.Sender := machineID;
@@ -2368,7 +2357,7 @@ machine(MachineType:Directory, "Directory protocol")
                 if (missing_parent != intToAddress(0)) {
                     if (AuthTBEs.isPresent(missing_parent) == false) {
                         AuthTBEs.allocate(missing_parent);
-                        enqueue(memQueue_out, MemoryMsg, to_memory_controller_latency) {
+                        enqueue(memQueue_out, MemoryMsg, to_memory_controller_latency + crypto_latency) {
                             out_msg.addr := missing_parent;
                             out_msg.Type := MemoryRequestType:MEMORY_READ;
                             out_msg.Sender := machineID;
@@ -2395,53 +2384,47 @@ machine(MachineType:Directory, "Directory protocol")
                     else if (AuthTBEs.lookup_ref(missing_parent).Waiter14 == intToAddress(0)) { AuthTBEs.lookup_ref(missing_parent).Waiter14 := data_addr; }
                     else if (AuthTBEs.lookup_ref(missing_parent).Waiter15 == intToAddress(0)) { AuthTBEs.lookup_ref(missing_parent).Waiter15 := data_addr; }
                 } else {
-                    Addr L1 := getParentAddr(data_addr);
+                    Addr L1 := getParentAddrDynamic(data_addr, tectree_arity);
                     if (L1 != intToAddress(0) && LLC.isTagPresent(L1)) {
                         getLLCEntry(L1).Dirty := true;
                         getDirectoryEntry(L1).DirState := State:C_M;
                         if (mru_policy == 0) {
 	LLC.setMRU(L1);
-	// [REF: TECTREE_MRU_POLICY]
 	} else if (mru_policy == 2 && rand() % 10 < 3) { LLC.setMRU(L1); }
-                        Addr L2 := getParentAddr(L1);
+                        Addr L2 := getParentAddrDynamic(L1, tectree_arity);
                         if (L2 != intToAddress(0) && LLC.isTagPresent(L2)) {
                             getLLCEntry(L2).Dirty := true;
                             getDirectoryEntry(L2).DirState := State:C_M;
                             if (mru_policy == 0) {
 	LLC.setMRU(L2);
-	// [REF: TECTREE_MRU_POLICY]
 	} else if (mru_policy == 2 && rand() % 10 < 4) { LLC.setMRU(L2); }
-                            Addr L3 := getParentAddr(L2);
+                            Addr L3 := getParentAddrDynamic(L2, tectree_arity);
                             if (L3 != intToAddress(0) && LLC.isTagPresent(L3)) {
                                 getLLCEntry(L3).Dirty := true;
                                 getDirectoryEntry(L3).DirState := State:C_M;
                                 if (mru_policy == 0) {
 	LLC.setMRU(L3);
-	// [REF: TECTREE_MRU_POLICY]
 	} else if (mru_policy == 2 && rand() % 10 < 5) { LLC.setMRU(L3); }
-                                Addr L4 := getParentAddr(L3);
+                                Addr L4 := getParentAddrDynamic(L3, tectree_arity);
                                 if (L4 != intToAddress(0) && LLC.isTagPresent(L4)) {
                                     getLLCEntry(L4).Dirty := true;
                                     getDirectoryEntry(L4).DirState := State:C_M;
                                     if (mru_policy == 0) {
 	LLC.setMRU(L4);
-	// [REF: TECTREE_MRU_POLICY]
 	} else if (mru_policy == 2 && rand() % 10 < 6) { LLC.setMRU(L4); }
-                                    Addr L5 := getParentAddr(L4);
+                                    Addr L5 := getParentAddrDynamic(L4, tectree_arity);
                                     if (L5 != intToAddress(0) && LLC.isTagPresent(L5)) {
                                         getLLCEntry(L5).Dirty := true;
                                         getDirectoryEntry(L5).DirState := State:C_M;
                                         if (mru_policy == 0) {
 	LLC.setMRU(L5);
-	// [REF: TECTREE_MRU_POLICY]
 	} else if (mru_policy == 2 && rand() % 10 < 8) { LLC.setMRU(L5); }
-                                        Addr L6 := getParentAddr(L5);
+                                        Addr L6 := getParentAddrDynamic(L5, tectree_arity);
                                         if (L6 != intToAddress(0) && LLC.isTagPresent(L6)) {
                                             getLLCEntry(L6).Dirty := true;
                                             getDirectoryEntry(L6).DirState := State:C_M;
                                             if (mru_policy == 0) {
 	LLC.setMRU(L6);
-	// [REF: TECTREE_MRU_POLICY]
 	} else if (mru_policy == 2) { LLC.setMRU(L6); }
                                         }
                                     }
@@ -2451,7 +2434,7 @@ machine(MachineType:Directory, "Directory protocol")
                     }
                     
                     Entry data_dir_entry := getDirectoryEntry(data_addr);
-                    enqueue(memQueue_out, MemoryMsg, to_memory_controller_latency) {
+                    enqueue(memQueue_out, MemoryMsg, to_memory_controller_latency + crypto_latency) {
                         out_msg.addr := data_addr;
                         out_msg.Type := MemoryRequestType:MEMORY_WB;
                         out_msg.Sender := machineID;
@@ -2478,7 +2461,7 @@ machine(MachineType:Directory, "Directory protocol")
                 if (missing_parent != intToAddress(0)) {
                     if (AuthTBEs.isPresent(missing_parent) == false) {
                         AuthTBEs.allocate(missing_parent);
-                        enqueue(memQueue_out, MemoryMsg, to_memory_controller_latency) {
+                        enqueue(memQueue_out, MemoryMsg, to_memory_controller_latency + crypto_latency) {
                             out_msg.addr := missing_parent;
                             out_msg.Type := MemoryRequestType:MEMORY_READ;
                             out_msg.Sender := machineID;
@@ -2505,53 +2488,47 @@ machine(MachineType:Directory, "Directory protocol")
                     else if (AuthTBEs.lookup_ref(missing_parent).Waiter14 == intToAddress(0)) { AuthTBEs.lookup_ref(missing_parent).Waiter14 := data_addr; }
                     else if (AuthTBEs.lookup_ref(missing_parent).Waiter15 == intToAddress(0)) { AuthTBEs.lookup_ref(missing_parent).Waiter15 := data_addr; }
                 } else {
-                    Addr L1 := getParentAddr(data_addr);
+                    Addr L1 := getParentAddrDynamic(data_addr, tectree_arity);
                     if (L1 != intToAddress(0) && LLC.isTagPresent(L1)) {
                         getLLCEntry(L1).Dirty := true;
                         getDirectoryEntry(L1).DirState := State:C_M;
                         if (mru_policy == 0) {
 	LLC.setMRU(L1);
-	// [REF: TECTREE_MRU_POLICY]
 	} else if (mru_policy == 2 && rand() % 10 < 3) { LLC.setMRU(L1); }
-                        Addr L2 := getParentAddr(L1);
+                        Addr L2 := getParentAddrDynamic(L1, tectree_arity);
                         if (L2 != intToAddress(0) && LLC.isTagPresent(L2)) {
                             getLLCEntry(L2).Dirty := true;
                             getDirectoryEntry(L2).DirState := State:C_M;
                             if (mru_policy == 0) {
 	LLC.setMRU(L2);
-	// [REF: TECTREE_MRU_POLICY]
 	} else if (mru_policy == 2 && rand() % 10 < 4) { LLC.setMRU(L2); }
-                            Addr L3 := getParentAddr(L2);
+                            Addr L3 := getParentAddrDynamic(L2, tectree_arity);
                             if (L3 != intToAddress(0) && LLC.isTagPresent(L3)) {
                                 getLLCEntry(L3).Dirty := true;
                                 getDirectoryEntry(L3).DirState := State:C_M;
                                 if (mru_policy == 0) {
 	LLC.setMRU(L3);
-	// [REF: TECTREE_MRU_POLICY]
 	} else if (mru_policy == 2 && rand() % 10 < 5) { LLC.setMRU(L3); }
-                                Addr L4 := getParentAddr(L3);
+                                Addr L4 := getParentAddrDynamic(L3, tectree_arity);
                                 if (L4 != intToAddress(0) && LLC.isTagPresent(L4)) {
                                     getLLCEntry(L4).Dirty := true;
                                     getDirectoryEntry(L4).DirState := State:C_M;
                                     if (mru_policy == 0) {
 	LLC.setMRU(L4);
-	// [REF: TECTREE_MRU_POLICY]
 	} else if (mru_policy == 2 && rand() % 10 < 6) { LLC.setMRU(L4); }
-                                    Addr L5 := getParentAddr(L4);
+                                    Addr L5 := getParentAddrDynamic(L4, tectree_arity);
                                     if (L5 != intToAddress(0) && LLC.isTagPresent(L5)) {
                                         getLLCEntry(L5).Dirty := true;
                                         getDirectoryEntry(L5).DirState := State:C_M;
                                         if (mru_policy == 0) {
 	LLC.setMRU(L5);
-	// [REF: TECTREE_MRU_POLICY]
 	} else if (mru_policy == 2 && rand() % 10 < 8) { LLC.setMRU(L5); }
-                                        Addr L6 := getParentAddr(L5);
+                                        Addr L6 := getParentAddrDynamic(L5, tectree_arity);
                                         if (L6 != intToAddress(0) && LLC.isTagPresent(L6)) {
                                             getLLCEntry(L6).Dirty := true;
                                             getDirectoryEntry(L6).DirState := State:C_M;
                                             if (mru_policy == 0) {
 	LLC.setMRU(L6);
-	// [REF: TECTREE_MRU_POLICY]
 	} else if (mru_policy == 2) { LLC.setMRU(L6); }
                                         }
                                     }
@@ -2561,7 +2538,7 @@ machine(MachineType:Directory, "Directory protocol")
                     }
                     
                     Entry data_dir_entry := getDirectoryEntry(data_addr);
-                    enqueue(memQueue_out, MemoryMsg, to_memory_controller_latency) {
+                    enqueue(memQueue_out, MemoryMsg, to_memory_controller_latency + crypto_latency) {
                         out_msg.addr := data_addr;
                         out_msg.Type := MemoryRequestType:MEMORY_WB;
                         out_msg.Sender := machineID;
@@ -2588,7 +2565,7 @@ machine(MachineType:Directory, "Directory protocol")
                 if (missing_parent != intToAddress(0)) {
                     if (AuthTBEs.isPresent(missing_parent) == false) {
                         AuthTBEs.allocate(missing_parent);
-                        enqueue(memQueue_out, MemoryMsg, to_memory_controller_latency) {
+                        enqueue(memQueue_out, MemoryMsg, to_memory_controller_latency + crypto_latency) {
                             out_msg.addr := missing_parent;
                             out_msg.Type := MemoryRequestType:MEMORY_READ;
                             out_msg.Sender := machineID;
@@ -2615,53 +2592,47 @@ machine(MachineType:Directory, "Directory protocol")
                     else if (AuthTBEs.lookup_ref(missing_parent).Waiter14 == intToAddress(0)) { AuthTBEs.lookup_ref(missing_parent).Waiter14 := data_addr; }
                     else if (AuthTBEs.lookup_ref(missing_parent).Waiter15 == intToAddress(0)) { AuthTBEs.lookup_ref(missing_parent).Waiter15 := data_addr; }
                 } else {
-                    Addr L1 := getParentAddr(data_addr);
+                    Addr L1 := getParentAddrDynamic(data_addr, tectree_arity);
                     if (L1 != intToAddress(0) && LLC.isTagPresent(L1)) {
                         getLLCEntry(L1).Dirty := true;
                         getDirectoryEntry(L1).DirState := State:C_M;
                         if (mru_policy == 0) {
 	LLC.setMRU(L1);
-	// [REF: TECTREE_MRU_POLICY]
 	} else if (mru_policy == 2 && rand() % 10 < 3) { LLC.setMRU(L1); }
-                        Addr L2 := getParentAddr(L1);
+                        Addr L2 := getParentAddrDynamic(L1, tectree_arity);
                         if (L2 != intToAddress(0) && LLC.isTagPresent(L2)) {
                             getLLCEntry(L2).Dirty := true;
                             getDirectoryEntry(L2).DirState := State:C_M;
                             if (mru_policy == 0) {
 	LLC.setMRU(L2);
-	// [REF: TECTREE_MRU_POLICY]
 	} else if (mru_policy == 2 && rand() % 10 < 4) { LLC.setMRU(L2); }
-                            Addr L3 := getParentAddr(L2);
+                            Addr L3 := getParentAddrDynamic(L2, tectree_arity);
                             if (L3 != intToAddress(0) && LLC.isTagPresent(L3)) {
                                 getLLCEntry(L3).Dirty := true;
                                 getDirectoryEntry(L3).DirState := State:C_M;
                                 if (mru_policy == 0) {
 	LLC.setMRU(L3);
-	// [REF: TECTREE_MRU_POLICY]
 	} else if (mru_policy == 2 && rand() % 10 < 5) { LLC.setMRU(L3); }
-                                Addr L4 := getParentAddr(L3);
+                                Addr L4 := getParentAddrDynamic(L3, tectree_arity);
                                 if (L4 != intToAddress(0) && LLC.isTagPresent(L4)) {
                                     getLLCEntry(L4).Dirty := true;
                                     getDirectoryEntry(L4).DirState := State:C_M;
                                     if (mru_policy == 0) {
 	LLC.setMRU(L4);
-	// [REF: TECTREE_MRU_POLICY]
 	} else if (mru_policy == 2 && rand() % 10 < 6) { LLC.setMRU(L4); }
-                                    Addr L5 := getParentAddr(L4);
+                                    Addr L5 := getParentAddrDynamic(L4, tectree_arity);
                                     if (L5 != intToAddress(0) && LLC.isTagPresent(L5)) {
                                         getLLCEntry(L5).Dirty := true;
                                         getDirectoryEntry(L5).DirState := State:C_M;
                                         if (mru_policy == 0) {
 	LLC.setMRU(L5);
-	// [REF: TECTREE_MRU_POLICY]
 	} else if (mru_policy == 2 && rand() % 10 < 8) { LLC.setMRU(L5); }
-                                        Addr L6 := getParentAddr(L5);
+                                        Addr L6 := getParentAddrDynamic(L5, tectree_arity);
                                         if (L6 != intToAddress(0) && LLC.isTagPresent(L6)) {
                                             getLLCEntry(L6).Dirty := true;
                                             getDirectoryEntry(L6).DirState := State:C_M;
                                             if (mru_policy == 0) {
 	LLC.setMRU(L6);
-	// [REF: TECTREE_MRU_POLICY]
 	} else if (mru_policy == 2) { LLC.setMRU(L6); }
                                         }
                                     }
@@ -2671,7 +2642,7 @@ machine(MachineType:Directory, "Directory protocol")
                     }
                     
                     Entry data_dir_entry := getDirectoryEntry(data_addr);
-                    enqueue(memQueue_out, MemoryMsg, to_memory_controller_latency) {
+                    enqueue(memQueue_out, MemoryMsg, to_memory_controller_latency + crypto_latency) {
                         out_msg.addr := data_addr;
                         out_msg.Type := MemoryRequestType:MEMORY_WB;
                         out_msg.Sender := machineID;
@@ -2698,7 +2669,7 @@ machine(MachineType:Directory, "Directory protocol")
                 if (missing_parent != intToAddress(0)) {
                     if (AuthTBEs.isPresent(missing_parent) == false) {
                         AuthTBEs.allocate(missing_parent);
-                        enqueue(memQueue_out, MemoryMsg, to_memory_controller_latency) {
+                        enqueue(memQueue_out, MemoryMsg, to_memory_controller_latency + crypto_latency) {
                             out_msg.addr := missing_parent;
                             out_msg.Type := MemoryRequestType:MEMORY_READ;
                             out_msg.Sender := machineID;
@@ -2725,53 +2696,47 @@ machine(MachineType:Directory, "Directory protocol")
                     else if (AuthTBEs.lookup_ref(missing_parent).Waiter14 == intToAddress(0)) { AuthTBEs.lookup_ref(missing_parent).Waiter14 := data_addr; }
                     else if (AuthTBEs.lookup_ref(missing_parent).Waiter15 == intToAddress(0)) { AuthTBEs.lookup_ref(missing_parent).Waiter15 := data_addr; }
                 } else {
-                    Addr L1 := getParentAddr(data_addr);
+                    Addr L1 := getParentAddrDynamic(data_addr, tectree_arity);
                     if (L1 != intToAddress(0) && LLC.isTagPresent(L1)) {
                         getLLCEntry(L1).Dirty := true;
                         getDirectoryEntry(L1).DirState := State:C_M;
                         if (mru_policy == 0) {
 	LLC.setMRU(L1);
-	// [REF: TECTREE_MRU_POLICY]
 	} else if (mru_policy == 2 && rand() % 10 < 3) { LLC.setMRU(L1); }
-                        Addr L2 := getParentAddr(L1);
+                        Addr L2 := getParentAddrDynamic(L1, tectree_arity);
                         if (L2 != intToAddress(0) && LLC.isTagPresent(L2)) {
                             getLLCEntry(L2).Dirty := true;
                             getDirectoryEntry(L2).DirState := State:C_M;
                             if (mru_policy == 0) {
 	LLC.setMRU(L2);
-	// [REF: TECTREE_MRU_POLICY]
 	} else if (mru_policy == 2 && rand() % 10 < 4) { LLC.setMRU(L2); }
-                            Addr L3 := getParentAddr(L2);
+                            Addr L3 := getParentAddrDynamic(L2, tectree_arity);
                             if (L3 != intToAddress(0) && LLC.isTagPresent(L3)) {
                                 getLLCEntry(L3).Dirty := true;
                                 getDirectoryEntry(L3).DirState := State:C_M;
                                 if (mru_policy == 0) {
 	LLC.setMRU(L3);
-	// [REF: TECTREE_MRU_POLICY]
 	} else if (mru_policy == 2 && rand() % 10 < 5) { LLC.setMRU(L3); }
-                                Addr L4 := getParentAddr(L3);
+                                Addr L4 := getParentAddrDynamic(L3, tectree_arity);
                                 if (L4 != intToAddress(0) && LLC.isTagPresent(L4)) {
                                     getLLCEntry(L4).Dirty := true;
                                     getDirectoryEntry(L4).DirState := State:C_M;
                                     if (mru_policy == 0) {
 	LLC.setMRU(L4);
-	// [REF: TECTREE_MRU_POLICY]
 	} else if (mru_policy == 2 && rand() % 10 < 6) { LLC.setMRU(L4); }
-                                    Addr L5 := getParentAddr(L4);
+                                    Addr L5 := getParentAddrDynamic(L4, tectree_arity);
                                     if (L5 != intToAddress(0) && LLC.isTagPresent(L5)) {
                                         getLLCEntry(L5).Dirty := true;
                                         getDirectoryEntry(L5).DirState := State:C_M;
                                         if (mru_policy == 0) {
 	LLC.setMRU(L5);
-	// [REF: TECTREE_MRU_POLICY]
 	} else if (mru_policy == 2 && rand() % 10 < 8) { LLC.setMRU(L5); }
-                                        Addr L6 := getParentAddr(L5);
+                                        Addr L6 := getParentAddrDynamic(L5, tectree_arity);
                                         if (L6 != intToAddress(0) && LLC.isTagPresent(L6)) {
                                             getLLCEntry(L6).Dirty := true;
                                             getDirectoryEntry(L6).DirState := State:C_M;
                                             if (mru_policy == 0) {
 	LLC.setMRU(L6);
-	// [REF: TECTREE_MRU_POLICY]
 	} else if (mru_policy == 2) { LLC.setMRU(L6); }
                                         }
                                     }
@@ -2781,7 +2746,7 @@ machine(MachineType:Directory, "Directory protocol")
                     }
                     
                     Entry data_dir_entry := getDirectoryEntry(data_addr);
-                    enqueue(memQueue_out, MemoryMsg, to_memory_controller_latency) {
+                    enqueue(memQueue_out, MemoryMsg, to_memory_controller_latency + crypto_latency) {
                         out_msg.addr := data_addr;
                         out_msg.Type := MemoryRequestType:MEMORY_WB;
                         out_msg.Sender := machineID;
@@ -2808,7 +2773,7 @@ machine(MachineType:Directory, "Directory protocol")
                 if (missing_parent != intToAddress(0)) {
                     if (AuthTBEs.isPresent(missing_parent) == false) {
                         AuthTBEs.allocate(missing_parent);
-                        enqueue(memQueue_out, MemoryMsg, to_memory_controller_latency) {
+                        enqueue(memQueue_out, MemoryMsg, to_memory_controller_latency + crypto_latency) {
                             out_msg.addr := missing_parent;
                             out_msg.Type := MemoryRequestType:MEMORY_READ;
                             out_msg.Sender := machineID;
@@ -2835,53 +2800,47 @@ machine(MachineType:Directory, "Directory protocol")
                     else if (AuthTBEs.lookup_ref(missing_parent).Waiter14 == intToAddress(0)) { AuthTBEs.lookup_ref(missing_parent).Waiter14 := data_addr; }
                     else if (AuthTBEs.lookup_ref(missing_parent).Waiter15 == intToAddress(0)) { AuthTBEs.lookup_ref(missing_parent).Waiter15 := data_addr; }
                 } else {
-                    Addr L1 := getParentAddr(data_addr);
+                    Addr L1 := getParentAddrDynamic(data_addr, tectree_arity);
                     if (L1 != intToAddress(0) && LLC.isTagPresent(L1)) {
                         getLLCEntry(L1).Dirty := true;
                         getDirectoryEntry(L1).DirState := State:C_M;
                         if (mru_policy == 0) {
 	LLC.setMRU(L1);
-	// [REF: TECTREE_MRU_POLICY]
 	} else if (mru_policy == 2 && rand() % 10 < 3) { LLC.setMRU(L1); }
-                        Addr L2 := getParentAddr(L1);
+                        Addr L2 := getParentAddrDynamic(L1, tectree_arity);
                         if (L2 != intToAddress(0) && LLC.isTagPresent(L2)) {
                             getLLCEntry(L2).Dirty := true;
                             getDirectoryEntry(L2).DirState := State:C_M;
                             if (mru_policy == 0) {
 	LLC.setMRU(L2);
-	// [REF: TECTREE_MRU_POLICY]
 	} else if (mru_policy == 2 && rand() % 10 < 4) { LLC.setMRU(L2); }
-                            Addr L3 := getParentAddr(L2);
+                            Addr L3 := getParentAddrDynamic(L2, tectree_arity);
                             if (L3 != intToAddress(0) && LLC.isTagPresent(L3)) {
                                 getLLCEntry(L3).Dirty := true;
                                 getDirectoryEntry(L3).DirState := State:C_M;
                                 if (mru_policy == 0) {
 	LLC.setMRU(L3);
-	// [REF: TECTREE_MRU_POLICY]
 	} else if (mru_policy == 2 && rand() % 10 < 5) { LLC.setMRU(L3); }
-                                Addr L4 := getParentAddr(L3);
+                                Addr L4 := getParentAddrDynamic(L3, tectree_arity);
                                 if (L4 != intToAddress(0) && LLC.isTagPresent(L4)) {
                                     getLLCEntry(L4).Dirty := true;
                                     getDirectoryEntry(L4).DirState := State:C_M;
                                     if (mru_policy == 0) {
 	LLC.setMRU(L4);
-	// [REF: TECTREE_MRU_POLICY]
 	} else if (mru_policy == 2 && rand() % 10 < 6) { LLC.setMRU(L4); }
-                                    Addr L5 := getParentAddr(L4);
+                                    Addr L5 := getParentAddrDynamic(L4, tectree_arity);
                                     if (L5 != intToAddress(0) && LLC.isTagPresent(L5)) {
                                         getLLCEntry(L5).Dirty := true;
                                         getDirectoryEntry(L5).DirState := State:C_M;
                                         if (mru_policy == 0) {
 	LLC.setMRU(L5);
-	// [REF: TECTREE_MRU_POLICY]
 	} else if (mru_policy == 2 && rand() % 10 < 8) { LLC.setMRU(L5); }
-                                        Addr L6 := getParentAddr(L5);
+                                        Addr L6 := getParentAddrDynamic(L5, tectree_arity);
                                         if (L6 != intToAddress(0) && LLC.isTagPresent(L6)) {
                                             getLLCEntry(L6).Dirty := true;
                                             getDirectoryEntry(L6).DirState := State:C_M;
                                             if (mru_policy == 0) {
 	LLC.setMRU(L6);
-	// [REF: TECTREE_MRU_POLICY]
 	} else if (mru_policy == 2) { LLC.setMRU(L6); }
                                         }
                                     }
@@ -2891,7 +2850,7 @@ machine(MachineType:Directory, "Directory protocol")
                     }
                     
                     Entry data_dir_entry := getDirectoryEntry(data_addr);
-                    enqueue(memQueue_out, MemoryMsg, to_memory_controller_latency) {
+                    enqueue(memQueue_out, MemoryMsg, to_memory_controller_latency + crypto_latency) {
                         out_msg.addr := data_addr;
                         out_msg.Type := MemoryRequestType:MEMORY_WB;
                         out_msg.Sender := machineID;
@@ -2928,7 +2887,7 @@ machine(MachineType:Directory, "Directory protocol")
 	//Funzione per implementare la ricorsione
 	action(checkRecursionAndWakeUp, "cRW", desc="Check if parent counter is missing") {
         peek(memQueue_in, MemoryMsg) {
-            Addr parent_addr := getParentAddr(address);
+            Addr parent_addr := getParentAddrDynamic(address, tectree_arity);
             
             // 1. ATTIVIAMO LA RICORSIONE: il padre manca se l'indirizzo non è 0 (Root) e non è in LLC
             bool parent_missing := (parent_addr != intToAddress(0)) && (LLC.isTagPresent(parent_addr) == false);
@@ -2938,7 +2897,7 @@ machine(MachineType:Directory, "Directory protocol")
                 if (AuthTBEs.isPresent(parent_addr) == false) {
                     AuthTBEs.allocate(parent_addr);
                     
-                    enqueue(memQueue_out, MemoryMsg, to_memory_controller_latency) {
+                    enqueue(memQueue_out, MemoryMsg, to_memory_controller_latency + crypto_latency) {
                         out_msg.addr := parent_addr;
                         out_msg.Type := MemoryRequestType:MEMORY_READ;
                         out_msg.Sender := machineID;
@@ -2955,80 +2914,14 @@ machine(MachineType:Directory, "Directory protocol")
             } else {
                 // 3. FINE RICORSIONE: Abbiamo raggiunto la Root (0) oppure il padre era già caldissimo in LLC!
                 wakeUpAllBuffers();
-                DPRINTF(Tectree, "[WAKE-UP] Counter 0x%x arrivato. Percorso verso la Root completato! Risveglio il Dato originale\n", address);
+                DPRINTF(Tectree, "[WAKE-UP] Counter 0x%x arrivato. Percorso completato! Risveglio il Dato originale\n", address);
             }
         }
 	}
 	
-    // [REF: METADATA_UPDATE]
-	action(incrementCounter,"inc", desc="Incrementa l'intero ramo dei Counter presenti in LLC"){
-		Addr L1 := getParentAddr(address);
-		if (L1 != intToAddress(0) && LLC.isTagPresent(L1)) {
-			getLLCEntry(L1).Dirty := true;
-			getDirectoryEntry(L1).DirState := State:C_M;
-			if (mru_policy == 0) {
-				LLC.setMRU(L1);
-				DPRINTF(Tectree, "[Counter-Hit] Counter L1 0x%x incrementato a C_M per lo sfratto del blocco 0x%x\n", L1, address);
-
-			// [REF: TECTREE_MRU_POLICY]
-			} else if (mru_policy == 2 && rand() % 10 < 3) { LLC.setMRU(L1); }
-
-			Addr L2 := getParentAddr(L1);
-			if (L2 != intToAddress(0) && LLC.isTagPresent(L2)) {
-				getLLCEntry(L2).Dirty := true;
-				getDirectoryEntry(L2).DirState := State:C_M;
-				if (mru_policy == 0) {
-	LLC.setMRU(L2);
-                DPRINTF(Tectree, "[Counter-Hit] Counter L2 0x%x incrementato a C_M\n", L2);
-	// [REF: TECTREE_MRU_POLICY]
-	} else if (mru_policy == 2 && rand() % 10 < 4) { LLC.setMRU(L2); }
-
-				Addr L3 := getParentAddr(L2);
-				if (L3 != intToAddress(0) && LLC.isTagPresent(L3)) {
-					getLLCEntry(L3).Dirty := true;
-					getDirectoryEntry(L3).DirState := State:C_M;
-					if (mru_policy == 0) {
-	LLC.setMRU(L3);
-                    DPRINTF(Tectree, "[Counter-Hit] Counter L3 0x%x incrementato a C_M\n", L3);
-	// [REF: TECTREE_MRU_POLICY]
-	} else if (mru_policy == 2 && rand() % 10 < 5) { LLC.setMRU(L3); }
-
-					Addr L4 := getParentAddr(L3);
-					if (L4 != intToAddress(0) && LLC.isTagPresent(L4)) {
-						getLLCEntry(L4).Dirty := true;
-						getDirectoryEntry(L4).DirState := State:C_M;
-						if (mru_policy == 0) {
-	LLC.setMRU(L4);
-                        DPRINTF(Tectree, "[Counter-Hit] Counter L4 0x%x incrementato a C_M\n", L4);
-	// [REF: TECTREE_MRU_POLICY]
-	} else if (mru_policy == 2 && rand() % 10 < 6) { LLC.setMRU(L4); }
-
-						Addr L5 := getParentAddr(L4);
-						if (L5 != intToAddress(0) && LLC.isTagPresent(L5)) {
-							getLLCEntry(L5).Dirty := true;
-							getDirectoryEntry(L5).DirState := State:C_M;
-							if (mru_policy == 0) {
-	LLC.setMRU(L5);
-                            DPRINTF(Tectree, "[Counter-Hit] Counter L5 0x%x incrementato a C_M\n", L5);
-	// [REF: TECTREE_MRU_POLICY]
-	} else if (mru_policy == 2 && rand() % 10 < 8) { LLC.setMRU(L5); }
-
-							Addr L6 := getParentAddr(L5);
-							if (L6 != intToAddress(0) && LLC.isTagPresent(L6)) {
-								getLLCEntry(L6).Dirty := true;
-								getDirectoryEntry(L6).DirState := State:C_M;
-								if (mru_policy == 0) {
-	LLC.setMRU(L6);
-                                DPRINTF(Tectree, "[Counter-Hit] Counter L6 0x%x incrementato a C_M\n", L6);
-	// [REF: TECTREE_MRU_POLICY]
-	} else if (mru_policy == 2) { LLC.setMRU(L6); }
-							}
-						}
-					}
-				}
-			}
-		}
-	}
+	action(incrementCounter,"inc", desc="Incrementa l\'intero ramo dei Counter presenti in LLC"){
+        updateTreeInCache(address);
+    }
 	
 	//--------------------------------------------------------------------------------
     
@@ -3043,7 +2936,6 @@ machine(MachineType:Directory, "Directory protocol")
         DPRINTF(Tectree, "[WAKE-UP] Duplicate Counter 0x%x arrived. Risveglio i buffer in stallo.\\n", address);
     }
 
-	// [REF: WAKEUP_BRIDGE]
 	action(wakeUpAll, "wuA", desc="Wake up all stalled buffers blindly") {
 		wakeUpAllBuffers();
 	}    
