@@ -53,11 +53,3 @@ for size in SIZES:
         tot = repl_clean + repl_dirty + repl_miss
         print(f"{size:<10} | {arity:<8} | {repl_clean:<16} | {repl_dirty:<17} | {repl_miss:<18} | {tot}")
 
-print("\n=========================================================================================")
-print("ANALISI DEI RISULTATI:")
-print("- Assenza di Thrashing (Size 16K e 64K): Il Working Set Dati e Metadati entra perfettamente")
-print("  nella LLC da 1MB, generando zero sfratti.")
-print("- L'efficienza della MRU (Size 128K): Nonostante migliaia di sfratti dovuti alla saturazione")
-print("  della cache, gli Auth_Miss crittografici sono quasi nulli. Questo dimostra che la MRU")
-print("  trattiene i metadati in cache molto più a lungo dei dati!")
-print("=========================================================================================")

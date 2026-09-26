@@ -78,12 +78,3 @@ for metric in metrics:
         row_str = f"{size:<12} | " + " | ".join([str(data[metric][size][a]).ljust(W) for a in ARITIES])
         print(row_str)
 
-print("\n=========================================================================")
-print("\n--- ANALISI DELLA SENSITIVITA' ALL'ARIETA' ---")
-print("I dati di particolare interesse estratti sono:")
-print("1. Meta Read: All'aumentare dell'Arietà, la profondità dell'albero decresce, ")
-print("   riducendo drasticamente il numero di fetch in memoria per i counter.")
-print("2. ROI Ticks: Rappresenta il tempo di esecuzione utile. Più l'arietà sale, meno traffico di metadati si")
-print("   genera, mitigando il collo di bottiglia e abbassando esponenzialmente i Ticks.")
-print("3. % DRAM su Tot. Mem: Indica l'efficienza della banda. Passando da Arity 15 a 63, ")
-print("   la percentuale di accessi utili (Dati veri) sale verso il 98%, isolando l'overhead crittografico.")
