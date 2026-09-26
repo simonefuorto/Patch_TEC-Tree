@@ -24,22 +24,22 @@ Questa cartella contiene tutti gli script Bash per inizializzare l'ambiente ed e
   * `3.build_tectree.sh`: Lancia il compilatore `scons` per buildare il simulatore con il protocollo personalizzato (`TARDISTSO_TECTREE`).
 
 * **Esperimenti (Capitolo 3 della Tesi):**
-  * `4.run_crypto_latency_sweep.sh`: (Ex `13`). Esegue la suite di test per l'**Analisi di Sensitività alla Latenza Crittografica**, forzando il simulatore nei paradigmi CTR e ECB al variare della latenza hardware.
-  * `5.run_radix_arity_sweep.sh`: (Ex `12`). Esegue i test per l'**Impatto Topologico**, lanciando il benchmark *Radix Sort* sotto forte stress (16K, 64K, 131K elementi) spazzolando dinamicamente i valori di Arity dell'albero crittografico (15, 31, 63).
+  * `4.run_crypto_latency_sweep.sh`:  Esegue la suite di test per l'**Analisi di Sensitività alla Latenza Crittografica**, forzando il simulatore nei paradigmi CTR e ECB al variare della latenza hardware.
+  * `5.run_radix_arity_sweep.sh`:  Esegue i test per l'**Impatto Topologico**, lanciando il benchmark *Radix Sort* sotto forte stress (16K, 64K, 131K elementi) spazzolando dinamicamente i valori di Arity dell'albero crittografico (15, 31, 63).
 
 *(Gli script obsoleti o di microbenchmarking secondari sono stati conservati all'interno della sottocartella `script_run/archive/` per eventuali run futuri).*
 
 ---
 
 ### 2. Cartella `python_scripts/` (Estrazione Dati e Grafici)
-Questa cartella contiene gli script Python sviluppati ad-hoc per parsare i pesantissimi file `stats.txt` di gem5 (estraendo unicamente la ROI) e generare le Tabelle/Grafici presenti nel Capitolo 3.
+Questa cartella contiene gli script Python sviluppati ad-hoc per il parsing dei pesantissimi file `stats.txt` di gem5 (estraendo unicamente la ROI) e generare le Tabelle/Grafici presenti nel Capitolo 3.
 Gli script sono stati rinominati per ricalcare i nomi dei paragrafi della tesi:
 
 * `1_Analisi_Sensitivita_Latenza_Crittografica.py`: (Ex `plot_ctr_vs_ecb.py`). Genera il grafico comparativo (Figura 3.1) che mostra la divergenza temporale tra il Latency Hiding del paradigma CTR e l'esposizione fatale della latenza nel paradigma ECB.
 * `2_Impatto_Topologico_Arieta.py`: (Ex `print_arity_table.py`). Estrae e formatta i dati per le 3 tabelle della Tesi: Ticks della ROI, accessi in lettura ai metadati (Meta Read) e Bandwidth Efficiency (% DRAM su Tot. Mem).
 * `3_Strategie_Evizione.py`: (Ex `print_evictions_table.py`). Tabula il traffico in uscita dalla LLC in condizioni estreme (size 131K), differenziando tra Evizioni Pulite, Sporche, e il numero di Stalli dovuti all'Auth Miss crittografico (che dimostrano matematicamente l'efficienza della policy MRU per i metadati).
 
-*(Gli altri script Python di supporto sono mantenuti in questa cartella per reference storico).*
+
 
 ---
 
