@@ -63,6 +63,9 @@ from topologies import *
 
 def define_options(parser):
     parser.add_argument("--mru-policy", type=int, default=0, help="0: MRU Aggressivo (Default), 1: No MRU")
+    parser.add_argument("--tectree-arity", type=int, default=15, help="Arity of the TecTree")
+    parser.add_argument("--crypto-latency", type=int, default=1, help="Latency of cryptographic operations")
+    parser.add_argument("--is-ecb", action="store_true", help="Use ECB mode")
     # By default, ruby uses the simple timing cpu and the X86 ISA
     parser.set_defaults(cpu_type="X86TimingSimpleCPU")
 

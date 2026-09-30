@@ -136,6 +136,16 @@ inline Addr getParentAddr(Addr addr) {
     return 0;
 }
 
+inline Addr getParentAddrDynamic(Addr addr, int arity) {
+    if (!isMetadataAddr(addr)) return (Addr)(getL1BaseAddr() + ((addr / (arity * 64)) * 64));
+    if (isL1Addr(addr)) return (Addr)(getL2BaseAddr() + (((addr - getL1BaseAddr()) / (arity * 64)) * 64));
+    if (isL2Addr(addr)) return (Addr)(getL3BaseAddr() + (((addr - getL2BaseAddr()) / (arity * 64)) * 64));
+    if (isL3Addr(addr)) return (Addr)(getL4BaseAddr() + (((addr - getL3BaseAddr()) / (arity * 64)) * 64));
+    if (isL4Addr(addr)) return (Addr)(getL5BaseAddr() + (((addr - getL4BaseAddr()) / (arity * 64)) * 64));
+    if (isL5Addr(addr)) return (Addr)(getL6BaseAddr() + (((addr - getL5BaseAddr()) / (arity * 64)) * 64));
+    return 0;
+}
+
 inline int
 mod(int val, int mod)
 {

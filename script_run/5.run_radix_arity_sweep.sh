@@ -58,7 +58,7 @@ for ARITY in "${ARITIES[@]}"; do
             configs/deprecated/example/se.py \
             -c tests/test-progs/tardis_tso/${ARCH}/${WORKLOAD}/bin/${WORKLOAD} \
             --options="-p 4 -n $SIZE -t" \
-            -n 5 --cpu-type ${ARCH}TimingSimpleCPU --ruby --l2_size=1MB --mem-size=4GB --mru-policy=0 --tectree-arity=$ARITY --crypto-latency=10 --is-ecb
+            -n 5 --cpu-type ${ARCH}TimingSimpleCPU --ruby --l2_size=1MB --mem-size=4GB --mru-policy=0 --tectree-arity=$ARITY --crypto-latency=1 --is-ecb
         
         # Crea una cartella per salvare le statistiche di questa specifica esecuzione
         RESULT_DIR="results_radix/stats_${PROTOCOL}_Pol0_arity_${ARITY}_size_${SIZE}"

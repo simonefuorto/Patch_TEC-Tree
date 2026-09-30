@@ -128,6 +128,9 @@ def create_system(options, full_system, system, dma_ports, bootmem, ruby_system,
         dir_cntrl.lease = lease
         # [REF: PYTHON_CONFIGS]
         dir_cntrl.mru_policy = options.mru_policy
+        dir_cntrl.tectree_arity = getattr(options, 'tectree_arity', 15)
+        dir_cntrl.crypto_latency = getattr(options, 'crypto_latency', 1)
+        dir_cntrl.is_ctr_mode = not getattr(options, 'is_ecb', False)
         dir_cntrl.root_cnt_0 = 0
         dir_cntrl.root_cnt_1 = 0
         dir_cntrl.root_cnt_2 = 0
