@@ -55,3 +55,21 @@ Il nucleo delle modifiche C++/SLICC si trova nel file `src/learning_gem5/tardis_
    L'introduzione della tabella delle transazioni pendenti `AuthTBEs` accoppiata a stati di stallo transitori (es. `I_Fetch_Auth`) per prevenire il deadlock durante l'attesa dei contatori dalla RAM principale.
 4. **MRU Topology-Aware (`[REF: TECTREE_MRU_POLICY]`)**
    In `src/mem/ruby/structures/CacheMemory.cc`, alterazione logica della priorità di ritenzione per blindare i blocchi contenenti i metadati nell'L2 Cache.
+
+---
+
+## Benchmarking: Baseline MESI
+
+Per fornire un punto di riferimento neutrale e confrontare oggettivamente l'overhead crittografico introdotto dall'hardware TARDISTSO_TECTREE, è stato eseguito il benchmark Radix sul protocollo standard `MESI_Two_Level`.
+
+Il test è stato configurato a parità di risorse architetturali (Memoria Principale: 3GB, LLC: 1MB, Core Logici: 4), disattivando completamente la topologia ad albero e le policy MRU custom.
+
+Di seguito sono riportati i risultati isolati nella *Region of Interest* (ROI), misurati in cicli di clock simulati (`simTicks`):
+
+| Array Size | Protocollo Base | Tempo di Esecuzione (ROI) |
+| :--- | :--- | :--- |
+| **16.384** | `MESI_Two_Level` | 1.516.319.000 Ticks |
+| **65.536** | `MESI_Two_Level` | 5.702.614.000 Ticks |
+| **131.072** | `MESI_Two_Level` | 11.286.742.500 Ticks |
+
+Questi valori "in purezza" (senza crittografia) permettono di quantificare matematicamente il compromesso prestazionale (overhead) introdotto inevitabilmente dall'estrazione asincrona e dalla validazione continua dei counter crittografici nell'architettura blindata.
