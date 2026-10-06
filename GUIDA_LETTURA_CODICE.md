@@ -66,10 +66,8 @@ Il test è stato configurato a parità di risorse architetturali (Memoria Princi
 
 Di seguito sono riportati i risultati isolati nella *Region of Interest* (ROI), misurati in cicli di clock simulati (`simTicks`):
 
-| Array Size | Protocollo Base | Tempo di Esecuzione (ROI) |
-| :--- | :--- | :--- |
-| **16.384** | `MESI_Two_Level` | 1.516.319.000 Ticks |
-| **65.536** | `MESI_Two_Level` | 5.702.614.000 Ticks |
-| **131.072** | `MESI_Two_Level` | 11.286.742.500 Ticks |
+| Protocollo | 16.384 | 65.536 | 131.072 |
+| :--- | :--- | :--- | :--- |
+| **MESI_Two_Level** | 1.516.319.000 | 5.702.614.000 | 11.286.742.500 |
 
 Questi valori "in purezza" (senza crittografia) permettono di quantificare matematicamente il compromesso prestazionale (overhead) introdotto inevitabilmente dall'estrazione asincrona e dalla validazione continua dei counter crittografici nell'architettura blindata.
