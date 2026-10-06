@@ -43,7 +43,7 @@ for SIZE in "${SIZES[@]}"; do
         configs/deprecated/example/se.py \
         -c tests/test-progs/tardis_tso/${ARCH}/${WORKLOAD}/bin/${WORKLOAD} \
         --options="-p 4 -n $SIZE -t" \
-        -n 5 --cpu-type ${ARCH}TimingSimpleCPU --ruby --l2_size=1MB --mem-size=3GB \
+        -n 5 --cpu-type ${ARCH}TimingSimpleCPU --ruby --l2_size=1MB --mem-size=4GB \
         --mru-policy=$POLICY --tectree-arity=$ARITY --crypto-latency=$CRYPTO_LATENCY --is-ecb
     
     # Cartella per i risultati
