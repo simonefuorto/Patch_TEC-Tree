@@ -69,6 +69,6 @@ Di seguito sono riportati i risultati isolati nella *Region of Interest* (ROI), 
 | Protocollo | 16.384 | 65.536 | 131.072 |
 | :--- | :--- | :--- | :--- |
 | **MESI_Two_Level** | 1.516.319.000 | 5.702.614.000 | 11.286.742.500 |
-| **TARDISTSO_TECTREE** (Pol2, Lat10) | 2.356.112.000 | 9.001.348.000 | 17.860.314.000 |
+| **TARDISTSO_TECTREE** (Pol2, Lat10, Ari15) | 2.356.112.000 | 9.001.348.000 | 17.860.314.000 |
 
 Questi valori "in purezza" (senza crittografia) permettono di quantificare matematicamente il compromesso prestazionale (overhead) introdotto inevitabilmente dall'estrazione asincrona e dalla validazione continua dei counter crittografici nell'architettura blindata.
