@@ -58,7 +58,7 @@ Il nucleo delle modifiche C++/SLICC si trova nel file `src/learning_gem5/tardis_
 
 ---
 
-## Benchmarking: Baseline MESI
+## Benchmarking: TARDISTSO-TECTREE vs MESI_TWO_LEVEL VS TARDISTSO
 
 Per fornire un punto di riferimento neutrale e confrontare oggettivamente l'overhead crittografico introdotto dall'hardware TARDISTSO_TECTREE, è stato eseguito il benchmark Radix sul protocollo standard `MESI_Two_Level`.
 
