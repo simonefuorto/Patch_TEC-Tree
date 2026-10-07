@@ -44,6 +44,10 @@ for proto, path_template in protocols.items():
                             elif "L2cache.m_demand_accesses" in b_line:
                                 val = int(re.findall(r'\d+', b_line.split()[1])[0])
                                 llc_reqs += val
+                            elif "system.ruby.dir_cntrl0.requestFromCache.m_msg_count" in b_line:
+                                val = int(re.findall(r'\d+', b_line.split()[1])[0])
+                                # Utilizzato come proxy per gli accessi condivisi/LLC in TARDISTSO
+                                llc_reqs += val
                         break 
                 else:
                     block_lines.append(line)
@@ -55,7 +59,7 @@ for proto, path_template in protocols.items():
         }
 
 print("\n### Tabella Riepilogativa ROI Benchmark Radix\n")
-print("| Protocollo | Array Size | Ticks (ROI) | Richieste DRAM | Richieste LLC | Overhead Ticks |")
+print("| Protocollo | Array Size | Ticks (ROI) | Richieste DRAM | Richieste LLC/Dir | Overhead Ticks |")
 print("| :--- | :--- | :--- | :--- | :--- | :--- |")
 
 for size in sizes:
