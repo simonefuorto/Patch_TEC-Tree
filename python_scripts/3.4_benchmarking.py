@@ -4,7 +4,7 @@ import re
 base_dir = "/Users/simonefuorto/Desktop/GEM/patch_tectree"
 protocols = {
     "MESI_Two_Level": "results_radix[MESI_TWO_LEVEL]/results_radix/stats_MESI_Two_Level_{size}",
-    "TARDISTSO": "radix_result[TARDISTSO]/radix_result[TARDISTSO]/stats_TARDISTSO_{size}",
+    "TARDISTSO": "results_radix[TARDISTSO]/radix_result[TARDISTSO]/stats_TARDISTSO_{size}",
     "TARDISTSO_TECTREE": "results_radix[TARDISTSO_TECTREE]/stats_TARDISTSO_TECTREE_Pol2_Arity15_Lat10_{size}"
 }
 sizes = ["16384", "65536", "131072"]
